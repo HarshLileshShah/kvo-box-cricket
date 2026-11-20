@@ -230,7 +230,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
           const isPlayoff = m.stage === 'SEMI_FINAL' || m.stage === 'FINAL';
           const leagueMatches = matches.filter(matchItem => matchItem.stage === 'LEAGUE');
           const completedLeagueMatches = leagueMatches.filter(matchItem => matchItem.status === 'COMPLETED');
-          const isLeagueIncomplete = isPlayoff && leagueMatches.length > 0 && completedLeagueMatches.length < leagueMatches.length;
+          const isLeagueIncomplete = false; // Enabled for testing: allows playoff fixtures to be scored, made LIVE & tested freely
 
           const tA = teams.find(t => t.id === m.teamAId);
           const tB = teams.find(t => t.id === m.teamBId);

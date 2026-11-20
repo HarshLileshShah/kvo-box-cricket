@@ -86,6 +86,7 @@ export function getTournamentState(): TournamentState {
       if (!parsed.rules?.maxLeagueMatchesPerTeam) {
         parsed.rules = OFFICIAL_TOURNAMENT_RULES;
       }
+      ensurePlayoffsReady(parsed);
       globalThis.__tournamentState = parsed;
       return parsed;
     } catch (err) {
@@ -98,6 +99,7 @@ export function getTournamentState(): TournamentState {
     try {
       const content = fs.readFileSync(TMP_STATE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
+      ensurePlayoffsReady(parsed);
       globalThis.__tournamentState = parsed;
       return parsed;
     } catch (err) {
@@ -112,8 +114,31 @@ export function getTournamentState(): TournamentState {
     matches: INITIAL_MATCHES,
     lastUpdated: new Date().toISOString(),
   };
+  ensurePlayoffsReady(fallback);
   saveTournamentState(fallback);
   return fallback;
+}
+
+function ensurePlayoffsReady(state: TournamentState) {
+  if (!state.matches || !state.teams || state.teams.length < 4) return;
+  const semi1 = state.matches.find(m => m.id === 'match-semi-1');
+  const semi2 = state.matches.find(m => m.id === 'match-semi-2');
+  if (semi1 && (!semi1.teamAId || !semi1.teamBId)) {
+    semi1.teamAId = state.teams[0].id;
+    semi1.teamBId = state.teams[3].id;
+    semi1.innings = [
+      createInitialInnings(semi1.teamAId, semi1.teamBId, state.teams),
+      createInitialInnings(semi1.teamBId, semi1.teamAId, state.teams),
+    ];
+  }
+  if (semi2 && (!semi2.teamAId || !semi2.teamBId)) {
+    semi2.teamAId = state.teams[1].id;
+    semi2.teamBId = state.teams[2].id;
+    semi2.innings = [
+      createInitialInnings(semi2.teamAId, semi2.teamBId, state.teams),
+      createInitialInnings(semi2.teamBId, semi2.teamAId, state.teams),
+    ];
+  }
 }
 
 export function saveTournamentState(state: TournamentState) {
@@ -633,11 +658,11 @@ export function setPlayoffTeams(params: {
 }) {
   const state = getTournamentState();
 
-  // Guard: all league matches must be completed
-  const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
-  if (incompleteLeague.length > 0) {
-    throw new Error(`Cannot finalize Semifinals! ${incompleteLeague.length} league matches are still remaining.`);
-  }
+  // Guard relaxed for testing: allows seeding & scoring playoff matches ahead of league completion
+  // const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
+  // if (incompleteLeague.length > 0) {
+  //   throw new Error(`Cannot finalize Semifinals! ${incompleteLeague.length} league matches are still remaining.`);
+  // }
 
   const semi1 = state.matches.find(m => m.id === 'match-semi-1');
   const semi2 = state.matches.find(m => m.id === 'match-semi-2');
