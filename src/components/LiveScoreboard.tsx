@@ -122,46 +122,46 @@ interface LiveScoreboardProps {
         )}
 
         {/* Broadcast Live Screen Header */}
-        <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border border-emerald-500/30 rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 md:p-8 shadow-2xl relative overflow-hidden">
           {/* Glow Effects */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* Live Ribbon */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 sm:pb-4 border-b border-slate-800">
             <div className="flex items-center space-x-2">
-              <span className="flex h-3 w-3 relative">
+              <span className="flex h-2.5 w-2.5 sm:h-3 sm:w-3 relative shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-rose-500" />
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-rose-400">
+              <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-rose-400">
                 {match.status === 'COMPLETED' ? 'Match Finished' : match.status === 'TIED' ? 'Match Tied (Super Over)' : 'LIVE MATCH'}
               </span>
               <span className="text-slate-600">•</span>
-              <span className="text-xs text-slate-300 font-semibold">{match.boxVenue || 'Box Turf'}</span>
+              <span className="text-[11px] sm:text-xs text-slate-300 font-semibold truncate max-w-[150px] sm:max-w-none">{match.boxVenue || 'Box Turf'}</span>
             </div>
 
-            <div className="flex items-center space-x-3 text-xs">
-              <span className="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-md font-semibold border border-slate-700">
+            <div className="flex items-center space-x-2 sm:space-x-3 text-[11px] sm:text-xs">
+              <span className="bg-slate-800 text-slate-300 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-semibold border border-slate-700">
                 {mStageDisplay}
               </span>
-              <span className="bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-md font-bold border border-amber-500/30">
+              <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-bold border border-amber-500/30">
                 {match.totalOvers} Overs
               </span>
             </div>
           </div>
 
           {/* Prominent Matchup: Who is Playing With Whom */}
-          <div className="mt-4 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="mt-3.5 sm:mt-4 bg-slate-950/80 border border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4">
+            <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-[1fr,auto,1fr] items-center gap-2">
               {/* Team A */}
-              <div className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl border ${currentInnings.battingTeamId === teamA?.id
+              <div className={`flex items-center space-x-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border min-w-0 ${currentInnings.battingTeamId === teamA?.id
                   ? 'bg-slate-900 border-amber-500/60 ring-2 ring-amber-500/20'
                   : 'bg-slate-950 border-slate-800'
                 }`}>
-                <span className="w-4 h-4 rounded-full ring-2 ring-white/20" style={{ backgroundColor: teamA?.color || '#3b82f6' }} />
-                <div>
-                  <span className="text-base sm:text-xl font-black text-white block leading-tight">{teamA?.name || 'Team A'}</span>
+                <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamA?.color || '#3b82f6' }} />
+                <div className="min-w-0">
+                  <span className="text-sm sm:text-lg font-black text-white block leading-tight truncate">{teamA?.name || 'Team A'}</span>
                   <span className={`text-[10px] font-bold uppercase tracking-wider block ${currentInnings.battingTeamId === teamA?.id ? 'text-amber-400 font-black' : 'text-slate-400'
                     }`}>
                     {currentInnings.battingTeamId === teamA?.id ? '🏏 BATTING' : '⚾ FIELDING / BOWLING'}
@@ -169,16 +169,18 @@ interface LiveScoreboardProps {
                 </div>
               </div>
 
-              <span className="text-amber-400 font-black text-xl italic px-1">VS</span>
+              <div className="flex items-center justify-center py-0.5 sm:py-0">
+                <span className="text-amber-400 font-black text-xs sm:text-base italic px-2 py-0.5 bg-slate-900/80 rounded-full border border-slate-800">VS</span>
+              </div>
 
               {/* Team B */}
-              <div className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl border ${currentInnings.battingTeamId === teamB?.id
+              <div className={`flex items-center space-x-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border min-w-0 ${currentInnings.battingTeamId === teamB?.id
                   ? 'bg-slate-900 border-amber-500/60 ring-2 ring-amber-500/20'
                   : 'bg-slate-950 border-slate-800'
                 }`}>
-                <span className="w-4 h-4 rounded-full ring-2 ring-white/20" style={{ backgroundColor: teamB?.color || '#ef4444' }} />
-                <div>
-                  <span className="text-base sm:text-xl font-black text-white block leading-tight">{teamB?.name || 'Team B'}</span>
+                <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamB?.color || '#ef4444' }} />
+                <div className="min-w-0">
+                  <span className="text-sm sm:text-lg font-black text-white block leading-tight truncate">{teamB?.name || 'Team B'}</span>
                   <span className={`text-[10px] font-bold uppercase tracking-wider block ${currentInnings.battingTeamId === teamB?.id ? 'text-amber-400 font-black' : 'text-slate-400'
                     }`}>
                     {currentInnings.battingTeamId === teamB?.id ? '🏏 BATTING' : '⚾ FIELDING / BOWLING'}
@@ -188,7 +190,7 @@ interface LiveScoreboardProps {
             </div>
 
             {/* Toss Info & Innings */}
-            <div className="text-xs text-slate-300 bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800 space-y-1">
+            <div className="w-full md:w-auto text-xs text-slate-300 bg-slate-900 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-slate-800 space-y-1">
               <div>
                 <span className="text-slate-400">Toss: </span>
                 {match.tossWinnerId ? (

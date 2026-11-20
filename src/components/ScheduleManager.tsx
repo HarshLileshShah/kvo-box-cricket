@@ -209,7 +209,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 overflow-x-auto scrollbar-none">
         {(['ALL', 'LEAGUE', 'PLAYOFFS'] as const).map(tab => (
           <button
             key={tab}
@@ -248,14 +248,14 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
           return (
             <div
               key={m.id}
-              className={`bg-slate-900 rounded-2xl p-5 border transition shadow-lg ${isLive
+              className={`bg-slate-900 rounded-2xl p-3.5 sm:p-5 border transition shadow-lg ${isLive
                   ? 'border-rose-500/60 ring-2 ring-rose-500/20'
                   : isCompleted
                     ? 'border-slate-800 opacity-90'
                     : 'border-slate-800 hover:border-slate-700'
                 }`}
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5 sm:pb-3">
                 <div className="flex items-center space-x-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
                     {m.stage === 'LEAGUE' ? 'League Match' : m.stage.replace('_', ' ')}
@@ -264,7 +264,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                   <span className="text-[11px] text-slate-400 font-semibold">{m.totalOvers} Overs</span>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   {/* Status Badges & Quick Toggle */}
                   <span
                     className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${isLive

@@ -147,7 +147,7 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
       {/* Full Player Statistics Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-xs text-left min-w-[700px]">
             <thead className="bg-slate-950 text-slate-400 uppercase font-bold tracking-wider">
               <tr>
                 <th className="p-3">Player</th>

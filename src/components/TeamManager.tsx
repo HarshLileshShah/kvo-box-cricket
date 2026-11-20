@@ -246,7 +246,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
 
       {/* Active Team Detail Card */}
       {activeTeam && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-6 shadow-xl space-y-4 sm:space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
             <div>
               <div className="flex items-center space-x-2">
@@ -327,7 +327,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
 
           {/* Players Roster Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-xs text-left min-w-[500px]">
               <thead className="bg-slate-950/60 text-slate-400 uppercase font-bold tracking-wider">
                 <tr>
                   <th className="p-3">#</th>

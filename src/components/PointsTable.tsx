@@ -129,21 +129,21 @@ export const PointsTable: React.FC<PointsTableProps> = ({
 
       {/* Unified League Points Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="font-black text-base text-white flex items-center space-x-2">
-            <Medal className="w-5 h-5 text-amber-400" />
+        <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 px-4 py-3 sm:px-5 sm:py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-black text-sm sm:text-base text-white flex items-center space-x-2">
+            <Medal className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             <span>Overall League Standings</span>
           </h3>
           <div className="flex items-center space-x-2">
-            <span className="flex items-center space-x-1 text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full font-bold border border-emerald-500/20">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span className="flex items-center space-x-1 text-[11px] sm:text-xs bg-emerald-500/10 text-emerald-400 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full font-bold border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400"></span>
               <span>Top 4 Qualify for Semis</span>
             </span>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-xs text-left min-w-[620px]">
             <thead className="bg-slate-950/80 text-slate-400 uppercase font-bold tracking-wider">
               <tr>
                 <th className="p-3.5">Rank</th>
@@ -212,7 +212,7 @@ export const PointsTable: React.FC<PointsTableProps> = ({
       </div>
 
       {/* Semifinals & Finals Playoff Bracket */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-6 shadow-xl space-y-4 sm:space-y-6">
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
             <h3 className="text-lg font-black text-white flex items-center space-x-2">
