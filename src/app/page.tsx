@@ -11,6 +11,7 @@ import { PlayerStats } from '@/components/PlayerStats';
 import { RuleBookViewer } from '@/components/RuleBookViewer';
 import { AdminLoginModal } from '@/components/AdminLoginModal';
 import { Playing8Modal } from '@/components/Playing8Modal';
+import { ResetConfirmModal } from '@/components/ResetConfirmModal';
 import { Match, Team, TournamentRulesConfig } from '@/types/cricket';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES } from '@/lib/mockData';
 import { RefreshCw, Trophy, Lock, ShieldAlert } from 'lucide-react';
@@ -284,21 +285,83 @@ export default function Home() {
     await fetchState(true);
   };
 
-  const handleResetTournament = async () => {
+  // Password-Protected Reset Confirmation Modal State
+  const [resetModalConfig, setResetModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    warningNote?: string;
+    confirmButtonText?: string;
+    onConfirm: (password: string) => Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: async () => {},
+  });
+
+  const promptResetMatch = (matchId: string) => {
     if (!isAdmin) {
       setShowLoginModal(true);
       return;
     }
-    if (!confirm('Are you sure you want to reset all tournament scores back to default?')) return;
-    const res = await fetch('/api/tournament', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'RESET_TOURNAMENT', params: {} }),
+    const m = matches.find(match => match.id === matchId);
+    const tA = teams.find(t => t.id === m?.teamAId);
+    const tB = teams.find(t => t.id === m?.teamBId);
+    const matchIndex = matches.findIndex(match => match.id === matchId);
+    const matchLabel = tA && tB ? `${tA.name} vs ${tB.name}` : `Match ${matchIndex >= 0 ? matchIndex + 1 : ''}`;
+
+    setResetModalConfig({
+      isOpen: true,
+      title: `Reset Match: ${matchLabel}`,
+      description: `This will reset all deliveries, wickets, runs, and lineup for this match back to 0. The match will return to UPCOMING status.`,
+      warningNote: `Team rosters, player details, and all other matches will remain completely unaffected.`,
+      confirmButtonText: 'Reset This Match',
+      onConfirm: async (password: string) => {
+        const res = await fetch('/api/tournament', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'RESET_MATCH',
+            params: { matchId, loginId: adminUser?.loginId || 'admin', password },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to reset match');
+        }
+        await fetchState(true);
+      },
     });
-    if (res.ok) {
-      await fetchState(true);
-      alert('Tournament reset to fresh state!');
+  };
+
+  const promptResetAllMatches = () => {
+    if (!isAdmin) {
+      setShowLoginModal(true);
+      return;
     }
+    setResetModalConfig({
+      isOpen: true,
+      title: 'Reset All Tournament Matches & Scores',
+      description: 'This will reset all 9 league matches and playoff scores back to 0 (Upcoming status).',
+      warningNote: 'CRITICAL: Team names, team colors, and custom player rosters will be safely PRESERVED.',
+      confirmButtonText: 'Reset All Matches',
+      onConfirm: async (password: string) => {
+        const res = await fetch('/api/tournament', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'RESET_ALL_MATCHES',
+            params: { loginId: adminUser?.loginId || 'admin', password },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to reset tournament');
+        }
+        await fetchState(true);
+      },
+    });
   };
 
   return (
@@ -331,6 +394,7 @@ export default function Home() {
               onOpenPlaying8Modal={() => handleOpenPlaying8Modal(activeMatch)}
               onEditBall={handleEditBall}
               onDeleteBall={handleDeleteBall}
+              onResetMatch={promptResetMatch}
             />
           ) : (
             <div className="max-w-md mx-auto text-center py-16 px-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl space-y-4">
@@ -384,6 +448,7 @@ export default function Home() {
             setActiveTab={setActiveTab}
             onOpenPlaying8Modal={handleOpenPlaying8Modal}
             onSetMatchStatus={handleSetMatchStatus}
+            onResetMatch={promptResetMatch}
           />
         )}
 
@@ -441,10 +506,11 @@ export default function Home() {
             <span className="text-slate-700">•</span>
             {isAdmin ? (
               <button
-                onClick={handleResetTournament}
+                onClick={promptResetAllMatches}
                 className="text-rose-500 hover:text-rose-400 transition font-medium"
+                title="Resets match scores back to 0 (preserves all team rosters and player details)"
               >
-                Reset Tournament Data
+                Reset All Match Scores
               </button>
             ) : (
               <button
@@ -458,6 +524,17 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Password-Protected Reset Confirmation Modal */}
+      <ResetConfirmModal
+        isOpen={resetModalConfig.isOpen}
+        title={resetModalConfig.title}
+        description={resetModalConfig.description}
+        warningNote={resetModalConfig.warningNote}
+        confirmButtonText={resetModalConfig.confirmButtonText}
+        onClose={() => setResetModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={resetModalConfig.onConfirm}
+      />
     </div>
   );
 }

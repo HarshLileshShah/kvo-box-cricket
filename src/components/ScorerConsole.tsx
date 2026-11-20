@@ -43,6 +43,7 @@ interface ScorerConsoleProps {
   onOpenPlaying8Modal?: () => void;
   onEditBall?: (params: any) => Promise<void>;
   onDeleteBall?: (params: any) => Promise<void>;
+  onResetMatch?: (matchId: string) => void;
 }
 
 export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
@@ -55,6 +56,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   onOpenPlaying8Modal,
   onEditBall,
   onDeleteBall,
+  onResetMatch,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showWicketModal, setShowWicketModal] = useState(false);
@@ -625,6 +627,18 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
             <History className="w-3.5 h-3.5 text-amber-400" />
             <span>Over Log & Edit</span>
           </button>
+
+          {/* Reset Match Button (Individual match reset) */}
+          {onResetMatch && (
+            <button
+              onClick={() => onResetMatch(match.id)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold border border-rose-500/30 transition active:scale-95 shadow-sm"
+              title="Reset this match back to 0 (requires admin password)"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Match</span>
+            </button>
+          )}
         </div>
 
         {/* Power Over Selector */}

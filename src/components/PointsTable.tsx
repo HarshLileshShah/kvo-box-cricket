@@ -3,12 +3,12 @@
 import React, { useState } from 'react';
 import { Match, Team } from '@/types/cricket';
 import { calculateLeagueStandings } from '@/lib/statsService';
-import { 
-  Trophy, 
-  ArrowRight, 
-  Sparkles, 
-  Medal, 
-  CheckCircle2, 
+import {
+  Trophy,
+  ArrowRight,
+  Sparkles,
+  Medal,
+  CheckCircle2,
   Settings2,
   Calendar,
   Flame,
@@ -162,25 +162,23 @@ export const PointsTable: React.FC<PointsTableProps> = ({
                 return (
                   <tr
                     key={s.teamId}
-                    className={`transition ${
-                      isTop4
+                    className={`transition ${isTop4
                         ? 'bg-emerald-950/10 hover:bg-emerald-950/25 border-l-4 border-emerald-500'
                         : 'hover:bg-slate-800/40'
-                    }`}
+                      }`}
                   >
                     <td className="p-3.5 font-bold">
                       <div className="flex items-center space-x-2">
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
-                          idx === 0
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${idx === 0
                             ? 'bg-amber-500 text-slate-950'
                             : idx === 1
-                            ? 'bg-slate-300 text-slate-950'
-                            : idx === 2
-                            ? 'bg-amber-700 text-white'
-                            : isTop4
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}>
+                              ? 'bg-slate-300 text-slate-950'
+                              : idx === 2
+                                ? 'bg-amber-700 text-white'
+                                : isTop4
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                  : 'bg-slate-800 text-slate-400'
+                          }`}>
                           {idx + 1}
                         </span>
                         {isTop4 && (

@@ -3,20 +3,21 @@
 import React, { useState } from 'react';
 import { Match, Team, MatchStage, MatchStatus } from '@/types/cricket';
 import { createInitialInnings } from '@/lib/mockData';
-import { 
-  CalendarDays, 
-  Plus, 
-  Gamepad2, 
-  Clock, 
-  Coins, 
-  Trophy, 
-  CheckCircle2, 
+import {
+  CalendarDays,
+  Plus,
+  Gamepad2,
+  Clock,
+  Coins,
+  Trophy,
+  CheckCircle2,
   Flame,
   AlertTriangle,
   ShieldCheck,
   Users,
   Lock,
-  Radio
+  Radio,
+  RotateCcw
 } from 'lucide-react';
 
 interface ScheduleManagerProps {
@@ -27,6 +28,7 @@ interface ScheduleManagerProps {
   setActiveTab: (tab: string) => void;
   onOpenPlaying8Modal: (match: Match) => void;
   onSetMatchStatus?: (matchId: string, status: MatchStatus) => Promise<void>;
+  onResetMatch?: (matchId: string) => void;
 }
 
 export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
@@ -37,6 +39,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   setActiveTab,
   onOpenPlaying8Modal,
   onSetMatchStatus,
+  onResetMatch,
 }) => {
   const [filterStage, setFilterStage] = useState<'ALL' | 'LEAGUE' | 'PLAYOFFS'>('ALL');
   const [showAddMatchModal, setShowAddMatchModal] = useState(false);
@@ -124,8 +127,8 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   const handleApplyToss = async () => {
     if (!selectedMatchForToss) return;
 
-    const battingFirstId = tossDecision === 'BAT' 
-      ? tossWinnerId 
+    const battingFirstId = tossDecision === 'BAT'
+      ? tossWinnerId
       : (tossWinnerId === selectedMatchForToss.teamAId ? selectedMatchForToss.teamBId : selectedMatchForToss.teamAId);
     const bowlingFirstId = battingFirstId === selectedMatchForToss.teamAId ? selectedMatchForToss.teamBId : selectedMatchForToss.teamAId;
 
@@ -188,13 +191,12 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
             return (
               <div
                 key={t.id}
-                className={`p-2 rounded-xl border text-xs flex flex-col justify-between ${
-                  isOver
+                className={`p-2 rounded-xl border text-xs flex flex-col justify-between ${isOver
                     ? 'bg-rose-950/40 border-rose-600/50 text-rose-300'
                     : isFull
-                    ? 'bg-slate-950 border-emerald-500/30 text-slate-200'
-                    : 'bg-slate-950 border-slate-800 text-slate-400'
-                }`}
+                      ? 'bg-slate-950 border-emerald-500/30 text-slate-200'
+                      : 'bg-slate-950 border-slate-800 text-slate-400'
+                  }`}
               >
                 <span className="font-bold truncate text-[11px]">{t.name}</span>
                 <span className={`text-xs font-black mt-1 ${isFull ? 'text-emerald-400' : isOver ? 'text-rose-400' : 'text-amber-400'}`}>
@@ -212,11 +214,10 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
           <button
             key={tab}
             onClick={() => setFilterStage(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              filterStage === tab
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${filterStage === tab
                 ? 'bg-slate-800 text-amber-400 border border-slate-700'
                 : 'text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             {tab === 'ALL' ? 'All Fixtures' : tab === 'LEAGUE' ? 'League Stage' : 'Playoffs (Top 4 Semis & Final)'}
           </button>
@@ -247,13 +248,12 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
           return (
             <div
               key={m.id}
-              className={`bg-slate-900 rounded-2xl p-5 border transition shadow-lg ${
-                isLive
+              className={`bg-slate-900 rounded-2xl p-5 border transition shadow-lg ${isLive
                   ? 'border-rose-500/60 ring-2 ring-rose-500/20'
                   : isCompleted
-                  ? 'border-slate-800 opacity-90'
-                  : 'border-slate-800 hover:border-slate-700'
-              }`}
+                    ? 'border-slate-800 opacity-90'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
             >
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center space-x-2">
@@ -267,13 +267,12 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                 <div className="flex items-center space-x-2">
                   {/* Status Badges & Quick Toggle */}
                   <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                      isLive
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${isLive
                         ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse'
                         : isCompleted
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                        : 'bg-slate-800 text-slate-400'
-                    }`}
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
                   >
                     {m.status}
                   </span>
@@ -299,6 +298,18 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                       </button>
                     )
                   )}
+
+                  {/* Reset Match Button */}
+                  {onResetMatch && (
+                    <button
+                      onClick={() => onResetMatch(m.id)}
+                      className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-rose-950/80 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-700/60 text-[10px] font-bold transition flex items-center space-x-1"
+                      title="Reset this match back to 0 (requires admin password)"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>Reset</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -313,7 +324,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                     <span className="font-bold text-white text-base">{teamAName}</span>
                   </div>
                   <span className="font-mono font-black text-amber-400 text-lg">
-                    {!isLeagueIncomplete ? (m.innings[0]?.totalRuns ?? '-') : '-'}
+                      {!isLeagueIncomplete ? (m.innings[0]?.totalRuns ?? '-') : '-'}
                     {!isLeagueIncomplete && m.innings[0]?.totalRuns !== undefined && (
                       <span className="text-xs text-rose-400">/{m.innings[0].totalWickets}</span>
                     )}
@@ -329,7 +340,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                     <span className="font-bold text-white text-base">{teamBName}</span>
                   </div>
                   <span className="font-mono font-black text-amber-400 text-lg">
-                    {!isLeagueIncomplete ? (m.innings[1]?.totalRuns ?? '-') : '-'}
+                      {!isLeagueIncomplete ? (m.innings[1]?.totalRuns ?? '-') : '-'}
                     {!isLeagueIncomplete && m.innings[1]?.totalRuns !== undefined && (
                       <span className="text-xs text-rose-400">/{m.innings[1].totalWickets}</span>
                     )}

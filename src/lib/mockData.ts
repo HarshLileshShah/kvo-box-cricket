@@ -145,7 +145,7 @@ export function createInitialInnings(battingTeamId: string, bowlingTeamId: strin
   const battingTeam = teamPlayers.find(t => t.id === battingTeamId);
   const bowlingTeam = teamPlayers.find(t => t.id === bowlingTeamId);
 
-  const battingRoster = playingPlayerIds && playingPlayerIds.length > 0 
+  const battingRoster = playingPlayerIds && playingPlayerIds.length > 0
     ? (battingTeam?.players.filter(p => playingPlayerIds.includes(p.id)) || [])
     : (battingTeam?.players || []);
 

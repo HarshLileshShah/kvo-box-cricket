@@ -189,11 +189,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={lm.id}
                   onClick={() => setSelectedMatchId(lm.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap border ${
-                    isSelected
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap border ${isSelected
                       ? 'bg-rose-600 text-white border-rose-500 shadow-md font-black'
                       : 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-800'
-                  }`}
+                    }`}
                 >
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: mA?.color || '#3b82f6' }} />
                   <span>{mA?.name || 'T1'} vs {mB?.name || 'T2'}</span>

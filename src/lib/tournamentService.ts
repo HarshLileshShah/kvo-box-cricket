@@ -221,11 +221,11 @@ export function recordBall(params: {
     isBye: params.outcomeType === 'BYE',
     dismissal: calc.isWicket
       ? {
-          type: params.dismissalType || 'CAUGHT',
-          dismissedPlayerId: params.dismissedPlayerId || striker?.id || '',
-          caughtByFemale: params.isCatchByFemale,
-          pointsDeducted: calc.effectiveTeamRuns,
-        }
+        type: params.dismissalType || 'CAUGHT',
+        dismissedPlayerId: params.dismissedPlayerId || striker?.id || '',
+        caughtByFemale: params.isCatchByFemale,
+        pointsDeducted: calc.effectiveTeamRuns,
+      }
       : undefined,
     commentary: calc.commentary,
     timestamp: new Date().toISOString(),
@@ -241,7 +241,19 @@ export function recordBall(params: {
   }
 
   // Update Batsman Stats
-  if (striker && inn.batsmanStats[striker.id]) {
+  if (striker) {
+    if (!inn.batsmanStats[striker.id]) {
+      inn.batsmanStats[striker.id] = {
+        playerId: striker.id,
+        name: striker.name,
+        category: striker.category,
+        runs: 0,
+        ballsFaced: 0,
+        fours: 0,
+        sixes: 0,
+        dismissalsCount: 0,
+      };
+    }
     const bStats = inn.batsmanStats[striker.id];
     if (calc.isLegalDelivery) {
       bStats.ballsFaced += 1;
@@ -253,7 +265,19 @@ export function recordBall(params: {
   }
 
   // Update Bowler Stats
-  if (bowler && inn.bowlerStats[bowler.id]) {
+  if (bowler) {
+    if (!inn.bowlerStats[bowler.id]) {
+      inn.bowlerStats[bowler.id] = {
+        playerId: bowler.id,
+        name: bowler.name,
+        oversBowled: 0,
+        legalBalls: 0,
+        runsConceded: 0,
+        wickets: 0,
+        wides: 0,
+        noBalls: 0,
+      };
+    }
     const bowlStats = inn.bowlerStats[bowler.id];
     if (params.outcomeType !== 'BYE') {
       bowlStats.runsConceded += calc.effectiveTeamRuns;
@@ -490,8 +514,93 @@ export function saveTeam(team: Team) {
   } else {
     state.teams.push(team);
   }
+
+  // Update upcoming unplayed matches involving this team to reflect roster updates
+  state.matches.forEach(m => {
+    if ((m.teamAId === team.id || m.teamBId === team.id) && m.status === 'UPCOMING') {
+      const hasBalls = m.innings.some(inn => inn.balls && inn.balls.length > 0);
+      if (!hasBalls) {
+        m.innings = [
+          createInitialInnings(m.teamAId, m.teamBId, state.teams, m.teamAPlaying8Ids),
+          createInitialInnings(m.teamBId, m.teamAId, state.teams, m.teamBPlaying8Ids),
+        ];
+      }
+    }
+  });
+
   saveTournamentState(state);
   return state.teams;
+}
+
+/**
+ * Reset Individual Match:
+ * Resets score, balls, wickets, toss, and lineups for this single match back to fresh state.
+ * Fully preserves team rosters, player names, and all other matches.
+ */
+export function resetMatch(params: { matchId: string }) {
+  const state = getTournamentState();
+  const match = state.matches.find(m => m.id === params.matchId);
+  if (!match) throw new Error('Match not found');
+
+  match.status = 'UPCOMING';
+  match.tossWinnerId = undefined;
+  match.tossDecision = undefined;
+  match.lineupSubmitted = false;
+  match.teamAPlaying8Ids = undefined;
+  match.teamBPlaying8Ids = undefined;
+  match.currentInningsIndex = 0;
+
+  // Recreate clean initial innings using the current team rosters
+  match.innings = [
+    createInitialInnings(match.teamAId, match.teamBId, state.teams),
+    createInitialInnings(match.teamBId, match.teamAId, state.teams),
+  ];
+
+  saveTournamentState(state);
+  return { match, matches: state.matches };
+}
+
+/**
+ * Reset All Tournament Matches:
+ * Resets all match scores, balls, and standings.
+ * GUARANTEES team names and player rosters are PRESERVED!
+ */
+export function resetAllMatches(params?: { wipeTeams?: boolean }) {
+  const state = getTournamentState();
+  const preserveTeams = !params?.wipeTeams;
+  const currentTeams = preserveTeams ? state.teams : INITIAL_TEAMS;
+
+  const freshMatches = INITIAL_MATCHES.map(m => {
+    const isPlayoff = m.stage === 'SEMI_FINAL' || m.stage === 'FINAL';
+    const teamAId = isPlayoff ? '' : m.teamAId;
+    const teamBId = isPlayoff ? '' : m.teamBId;
+    return {
+      ...m,
+      teamAId,
+      teamBId,
+      status: 'UPCOMING' as const,
+      tossWinnerId: undefined,
+      tossDecision: undefined,
+      lineupSubmitted: false,
+      teamAPlaying8Ids: undefined,
+      teamBPlaying8Ids: undefined,
+      currentInningsIndex: 0 as (0 | 1),
+      innings: [
+        createInitialInnings(teamAId, teamBId, currentTeams),
+        createInitialInnings(teamBId, teamAId, currentTeams),
+      ] as [Innings, Innings],
+    };
+  });
+
+  const resetState: TournamentState = {
+    rules: state.rules || OFFICIAL_TOURNAMENT_RULES,
+    teams: currentTeams,
+    matches: freshMatches,
+    lastUpdated: new Date().toISOString(),
+  };
+
+  saveTournamentState(resetState);
+  return resetState;
 }
 
 /**

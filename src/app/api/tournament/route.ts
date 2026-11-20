@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { 
-  getTournamentState, 
-  recordBall, 
-  undoLastBall, 
-  updateActiveParticipants, 
-  saveTeam, 
-  saveMatch, 
+import {
+  getTournamentState,
+  recordBall,
+  undoLastBall,
+  updateActiveParticipants,
+  saveTeam,
+  saveMatch,
   setPlayoffTeams,
   submitPlayingLineup,
   saveTournamentState,
@@ -14,8 +14,11 @@ import {
   setInMemoryTournamentState,
   updateBall,
   deleteBall,
-  setMatchStatus
+  setMatchStatus,
+  resetMatch,
+  resetAllMatches
 } from '@/lib/tournamentService';
+import { verifyAdminCredentials } from '@/lib/authService';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES } from '@/lib/mockData';
 
 export const dynamic = 'force-dynamic';
@@ -92,15 +95,21 @@ export async function POST(request: Request) {
         result = setMatchStatus(body.params);
         break;
       }
+      case 'RESET_MATCH': {
+        const authRes = verifyAdminCredentials(body.params?.loginId || 'admin', body.params?.password || '');
+        if (!authRes.success) {
+          return NextResponse.json({ error: authRes.error || 'Incorrect admin password. Match reset was rejected.' }, { status: 403 });
+        }
+        result = resetMatch(body.params);
+        break;
+      }
+      case 'RESET_ALL_MATCHES':
       case 'RESET_TOURNAMENT': {
-        const resetState = {
-          rules: OFFICIAL_TOURNAMENT_RULES,
-          teams: INITIAL_TEAMS,
-          matches: INITIAL_MATCHES,
-          lastUpdated: new Date().toISOString(),
-        };
-        saveTournamentState(resetState);
-        result = resetState;
+        const authRes = verifyAdminCredentials(body.params?.loginId || 'admin', body.params?.password || '');
+        if (!authRes.success) {
+          return NextResponse.json({ error: authRes.error || 'Incorrect admin password. Reset operation was rejected.' }, { status: 403 });
+        }
+        result = resetAllMatches(body.params);
         break;
       }
       default:
