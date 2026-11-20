@@ -143,40 +143,106 @@ export async function saveMongoState(uri: string, state: TournamentState): Promi
   return true;
 }
 
+import { Pool } from 'pg';
+
+let pgPool: Pool | null = null;
+
+function getPgPool(dbUrl: string): Pool {
+  if (pgPool) return pgPool;
+  const isLocalhost = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+  pgPool = new Pool({
+    connectionString: dbUrl,
+    ssl: isLocalhost ? false : { rejectUnauthorized: false },
+    max: 10,
+    connectionTimeoutMillis: 7000,
+  });
+  return pgPool;
+}
+
 /* =========================================================
-   PostgreSQL Adapter (Neon / Supabase / Railway)
+   PostgreSQL Adapter (Universal: Neon, Supabase, Railway, Render)
    ========================================================= */
 export async function getPostgresState(dbUrl: string): Promise<TournamentState | null> {
-  const sql = neon(dbUrl);
-  await sql`
+  // 1. If Neon endpoint, prefer lightweight HTTP serverless driver
+  if (dbUrl.includes('neon.tech')) {
+    try {
+      const sql = neon(dbUrl);
+      await sql`
+        CREATE TABLE IF NOT EXISTS tournament_state (
+          id VARCHAR(50) PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+      const rows = await sql`SELECT data FROM tournament_state WHERE id = 'current' LIMIT 1;`;
+      if (rows && rows.length > 0) {
+        return rows[0].data as TournamentState;
+      }
+      return null;
+    } catch (e: any) {
+      console.warn('Neon HTTP driver fallback to standard pg Pool:', e.message);
+    }
+  }
+
+  // 2. Standard pg Pool (Works for Supabase, Railway, Render, AWS, and all PostgreSQL databases)
+  const pool = getPgPool(dbUrl);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS tournament_state (
       id VARCHAR(50) PRIMARY KEY,
       data JSONB NOT NULL,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
-  `;
-  const rows = await sql`SELECT data FROM tournament_state WHERE id = 'current' LIMIT 1;`;
-  if (rows && rows.length > 0) {
-    return rows[0].data as TournamentState;
+  `);
+  const res = await pool.query(`SELECT data FROM tournament_state WHERE id = 'current' LIMIT 1;`);
+  if (res.rows && res.rows.length > 0) {
+    const d = res.rows[0].data;
+    return typeof d === 'string' ? JSON.parse(d) : d;
   }
   return null;
 }
 
 export async function savePostgresState(dbUrl: string, state: TournamentState): Promise<boolean> {
-  const sql = neon(dbUrl);
-  await sql`
+  const payload = JSON.stringify(state);
+
+  // 1. If Neon endpoint, use HTTP serverless driver
+  if (dbUrl.includes('neon.tech')) {
+    try {
+      const sql = neon(dbUrl);
+      await sql`
+        CREATE TABLE IF NOT EXISTS tournament_state (
+          id VARCHAR(50) PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+      await sql`
+        INSERT INTO tournament_state (id, data, updated_at)
+        VALUES ('current', ${payload}::jsonb, NOW())
+        ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW();
+      `;
+      return true;
+    } catch (e: any) {
+      console.warn('Neon HTTP driver save fallback to standard pg Pool:', e.message);
+    }
+  }
+
+  // 2. Standard pg Pool
+  const pool = getPgPool(dbUrl);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS tournament_state (
       id VARCHAR(50) PRIMARY KEY,
       data JSONB NOT NULL,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
-  `;
-  const payload = JSON.stringify(state);
-  await sql`
+  `);
+  await pool.query(
+    `
     INSERT INTO tournament_state (id, data, updated_at)
-    VALUES ('current', ${payload}::jsonb, NOW())
+    VALUES ($1, $2::jsonb, NOW())
     ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW();
-  `;
+  `,
+    ['current', payload]
+  );
   return true;
 }
 
@@ -290,8 +356,13 @@ export async function testDatabaseConnectivity(creds: DatabaseCredentials): Prom
     }
 
     if (creds.type === 'postgres' && creds.postgresUrl) {
-      const sql = neon(creds.postgresUrl);
-      await sql`SELECT 1 as connected;`;
+      if (creds.postgresUrl.includes('neon.tech')) {
+        const sql = neon(creds.postgresUrl);
+        await sql`SELECT 1 as connected;`;
+      } else {
+        const pool = getPgPool(creds.postgresUrl);
+        await pool.query('SELECT 1 as connected;');
+      }
       return { success: true, message: 'Successfully connected to PostgreSQL database!' };
     }
 
