@@ -18,6 +18,7 @@ import {
   resetMatch,
   resetAllMatches
 } from '@/lib/tournamentService';
+import { fetchLiveDatabaseState, persistLiveDatabaseState } from '@/lib/db';
 import { verifyAdminCredentials } from '@/lib/authService';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES } from '@/lib/mockData';
 
@@ -26,12 +27,21 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    // If KV is configured (e.g. Vercel KV / Upstash Redis), sync state
-    const kvState = await getKVTournamentState();
-    if (kvState) {
-      setInMemoryTournamentState(kvState);
+    // 1. Fetch live state from persistent cloud database (MongoDB, Postgres, Redis/KV)
+    const dbRes = await fetchLiveDatabaseState();
+    if (dbRes.state) {
+      setInMemoryTournamentState(dbRes.state);
+      return NextResponse.json(dbRes.state);
     }
+
+    // 2. Fallback to local state / in-memory state
     const state = getTournamentState();
+
+    // If cloud database is connected but was empty, immediately seed it with tournament state!
+    if (dbRes.connected && !dbRes.state) {
+      await persistLiveDatabaseState(state);
+    }
+
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -40,10 +50,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    // Ensure we have latest KV state before mutation if KV is configured
-    const kvState = await getKVTournamentState();
-    if (kvState) {
-      setInMemoryTournamentState(kvState);
+    // Ensure we have latest live database state before applying mutation
+    const dbRes = await fetchLiveDatabaseState();
+    if (dbRes.state) {
+      setInMemoryTournamentState(dbRes.state);
     }
 
     const body = await request.json();
@@ -116,8 +126,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
-    // Push updated state to KV if configured
+    // Persist updated state to active database (MongoDB, PostgreSQL, or Redis/KV)
     const latestState = getTournamentState();
+    await persistLiveDatabaseState(latestState);
     await setKVTournamentState(latestState);
 
     return NextResponse.json(result);

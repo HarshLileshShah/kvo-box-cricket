@@ -12,9 +12,10 @@ import { RuleBookViewer } from '@/components/RuleBookViewer';
 import { AdminLoginModal } from '@/components/AdminLoginModal';
 import { Playing8Modal } from '@/components/Playing8Modal';
 import { ResetConfirmModal } from '@/components/ResetConfirmModal';
+import { DatabaseConfigModal } from '@/components/DatabaseConfigModal';
 import { Match, Team, TournamentRulesConfig } from '@/types/cricket';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES } from '@/lib/mockData';
-import { RefreshCw, Trophy, Lock, ShieldAlert } from 'lucide-react';
+import { RefreshCw, Trophy, Lock, ShieldAlert, Database } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<string>('live-viewer');
@@ -29,6 +30,7 @@ export default function Home() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [adminUser, setAdminUser] = useState<{ loginId: string; name: string } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const [showDbConfigModal, setShowDbConfigModal] = useState<boolean>(false);
 
   // Playing 8 Lineup State
   const [showPlaying8Modal, setShowPlaying8Modal] = useState<boolean>(false);
@@ -377,6 +379,7 @@ export default function Home() {
         adminUser={adminUser}
         onOpenLogin={() => setShowLoginModal(true)}
         onLogout={handleLogout}
+        onOpenDbConfig={() => setShowDbConfigModal(true)}
       />
 
       {/* Main View Area */}
@@ -505,13 +508,24 @@ export default function Home() {
             </button>
             <span className="text-slate-700">•</span>
             {isAdmin ? (
-              <button
-                onClick={promptResetAllMatches}
-                className="text-rose-500 hover:text-rose-400 transition font-medium"
-                title="Resets match scores back to 0 (preserves all team rosters and player details)"
-              >
-                Reset All Match Scores
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setShowDbConfigModal(true)}
+                  className="flex items-center space-x-1 text-slate-400 hover:text-emerald-400 transition"
+                  title="Configure Cloud Database"
+                >
+                  <Database className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Database</span>
+                </button>
+                <span className="text-slate-700">•</span>
+                <button
+                  onClick={promptResetAllMatches}
+                  className="text-rose-500 hover:text-rose-400 transition font-medium"
+                  title="Resets match scores back to 0 (preserves all team rosters and player details)"
+                >
+                  Reset All Match Scores
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => setShowLoginModal(true)}
@@ -534,6 +548,13 @@ export default function Home() {
         confirmButtonText={resetModalConfig.confirmButtonText}
         onClose={() => setResetModalConfig(prev => ({ ...prev, isOpen: false }))}
         onConfirm={resetModalConfig.onConfirm}
+      />
+
+      {/* Cloud Database Configuration Modal */}
+      <DatabaseConfigModal
+        isOpen={showDbConfigModal}
+        onClose={() => setShowDbConfigModal(false)}
+        onSuccess={() => fetchState(true)}
       />
     </div>
   );

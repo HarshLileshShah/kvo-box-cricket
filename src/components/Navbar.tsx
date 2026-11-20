@@ -13,7 +13,8 @@ import {
   Flame,
   Lock,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Database
 } from 'lucide-react';
 import { Match, Team } from '@/types/cricket';
 
@@ -28,6 +29,7 @@ interface NavbarProps {
   adminUser: { loginId: string; name: string } | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onOpenDbConfig?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   adminUser,
   onOpenLogin,
   onLogout,
+  onOpenDbConfig,
 }) => {
   const activeMatch = matches.find(m => m.id === selectedMatchId);
 
@@ -119,18 +122,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Admin Login / Logout Button */}
             {isAdmin ? (
-              <div className="flex items-center space-x-2 bg-emerald-950/70 border border-emerald-600/50 rounded-xl px-3 py-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold text-emerald-300 hidden md:inline">
-                  Admin: {adminUser?.loginId || 'Scorer'}
-                </span>
-                <button
-                  onClick={onLogout}
-                  className="text-xs text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+              <div className="flex items-center space-x-2">
+                {onOpenDbConfig && (
+                  <button
+                    onClick={onOpenDbConfig}
+                    className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold transition shadow-sm"
+                    title="Configure Cloud Database Connection"
+                  >
+                    <Database className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Database</span>
+                  </button>
+                )}
+                <div className="flex items-center space-x-2 bg-emerald-950/70 border border-emerald-600/50 rounded-xl px-3 py-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-emerald-300 hidden md:inline">
+                    Admin: {adminUser?.loginId || 'Scorer'}
+                  </span>
+                  <button
+                    onClick={onLogout}
+                    className="text-xs text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
+                    title="Sign Out"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ) : (
               <button
