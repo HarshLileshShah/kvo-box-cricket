@@ -76,9 +76,10 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
     const kids = selectedPlayers.filter(p => p.category === 'KID').length;
     const count = selectedPlayers.length;
 
+    const hasSenior = team.players.some(p => p.category === 'SENIOR');
     const isCountValid = count === 8;
     const isFemaleValid = females >= 2;
-    const isSeniorValid = seniors >= 1;
+    const isSeniorValid = hasSenior ? seniors >= 1 : true;
     const isKidValid = kids >= 1;
 
     return {
@@ -86,6 +87,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
       females,
       seniors,
       kids,
+      hasSenior,
       isValid: isCountValid && isFemaleValid && isSeniorValid && isKidValid,
     };
   };
@@ -96,7 +98,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
 
   const handleSubmit = async () => {
     if (!isAllValid) {
-      alert('Both teams must submit exactly 8 players meeting the compulsory rules (2 females, 1 senior, 1 kid).');
+      alert('Both teams must submit exactly 8 players meeting the compulsory rules (min 2 females and 1 kid).');
       return;
     }
 
@@ -184,9 +186,11 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
             <span className={currentVal.females >= 2 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
               • Females: {currentVal.females}/2 min
             </span>
-            <span className={currentVal.seniors >= 1 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-              • Senior: {currentVal.seniors}/1 min
-            </span>
+            {currentVal.hasSenior && (
+              <span className={currentVal.seniors >= 1 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                • Senior: {currentVal.seniors}/1 min
+              </span>
+            )}
             <span className={currentVal.kids >= 1 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
               • Kid: {currentVal.kids}/1 min
             </span>
@@ -215,13 +219,24 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
                     className="w-4 h-4 rounded border-slate-700 text-amber-500 focus:ring-amber-400 pointer-events-none"
                   />
                   <div>
-                    <span className="font-bold text-sm block">{p.name}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-sm">{p.name}</span>
+                      {p.jerseyNumber && (
+                        <span className="text-[10px] font-mono font-bold bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">
+                          #{p.jerseyNumber}
+                        </span>
+                      )}
+                      {p.isCaptain && (
+                        <span className="text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                          C
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[11px] text-slate-400">
                       {p.category === 'FEMALE' && 'Female (2x Runs hit)'}
                       {p.category === 'SENIOR' && 'Senior Citizen (Min 6 balls)'}
                       {p.category === 'KID' && 'Junior / Kid Player'}
                       {p.category === 'REGULAR' && 'Regular Player'}
-                      {p.isCaptain && ' • Captain'}
                     </span>
                   </div>
                 </div>

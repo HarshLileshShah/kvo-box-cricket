@@ -57,13 +57,15 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
     const captain = team.players.some(p => p.isCaptain);
     const totalPlayers = team.players.length;
 
+    const hasSenior = seniors >= 1;
     return {
       totalPlayers,
       females,
       seniors,
       kids,
       captain,
-      isCompliant: totalPlayers === 9 && females >= 2 && seniors >= 1 && kids >= 1 && captain,
+      hasSenior,
+      isCompliant: totalPlayers === 9 && females >= 2 && kids >= 1 && captain,
     };
   };
 
@@ -339,7 +341,21 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
                 {activeTeam.players.map((p, idx) => (
                   <tr key={p.id} className="hover:bg-slate-800/40">
                     <td className="p-3 font-mono text-slate-500">{idx + 1}</td>
-                    <td className="p-3 font-bold text-white text-sm">{p.name}</td>
+                    <td className="p-3 font-bold text-white text-sm">
+                      <div className="flex items-center space-x-2">
+                        <span>{p.name}</span>
+                        {p.jerseyNumber && (
+                          <span className="text-[10px] font-mono font-bold bg-slate-800 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700" title={`Jersey #${p.jerseyNumber}`}>
+                            #{p.jerseyNumber}
+                          </span>
+                        )}
+                        {p.jerseyName && p.jerseyName !== p.name && (
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            ({p.jerseyName})
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3">
                       {p.category === 'FEMALE' && (
                         <span className="bg-pink-500/20 text-pink-300 border border-pink-500/30 text-[10px] px-2 py-0.5 rounded font-bold uppercase">

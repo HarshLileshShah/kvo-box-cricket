@@ -6,6 +6,9 @@ export interface Player {
   category: PlayerCategory;
   isCaptain?: boolean;
   phone?: string;
+  jerseyNumber?: string;
+  jerseyName?: string;
+  tShirtSize?: string;
 }
 
 export interface Team {
