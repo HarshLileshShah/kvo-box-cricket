@@ -71,6 +71,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
   // Over History & Ball Editor State
   const [showOverHistoryModal, setShowOverHistoryModal] = useState(false);
+  const [selectedInningsFilter, setSelectedInningsFilter] = useState<number>(match.currentInningsIndex);
   const [selectedOverFilter, setSelectedOverFilter] = useState(1);
   const [editingBall, setEditingBall] = useState<BallRecord | null>(null);
   const [editOutcomeType, setEditOutcomeType] = useState<BallOutcomeType>('DOT');
@@ -78,6 +79,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const [editNoBallType, setEditNoBallType] = useState<'NORMAL' | 'LEG_UPLIFT'>('NORMAL');
   const [editDismissalType, setEditDismissalType] = useState<DismissalType>('CAUGHT');
   const [editIsCatchByFemale, setEditIsCatchByFemale] = useState(false);
+  const [editBatsmanId, setEditBatsmanId] = useState('');
+  const [editBowlerId, setEditBowlerId] = useState('');
+  const [editIsPowerOver, setEditIsPowerOver] = useState(false);
+  const [editCommentary, setEditCommentary] = useState('');
   
   const [showChangePairModal, setShowChangePairModal] = useState(false);
   const [selectedNewStrikerId, setSelectedNewStrikerId] = useState('');
@@ -235,6 +240,38 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
     setEditNoBallType(ball.noBallType || 'NORMAL');
     setEditDismissalType(ball.dismissal?.type || 'CAUGHT');
     setEditIsCatchByFemale(!!ball.dismissal?.caughtByFemale);
+    setEditBatsmanId(ball.batsmanId || '');
+    setEditBowlerId(ball.bowlerId || '');
+    setEditIsPowerOver(!!ball.isPowerOver);
+    setEditCommentary(ball.commentary || '');
+  };
+
+  const handleEditOutcomeChange = (newOutcome: BallOutcomeType) => {
+    setEditOutcomeType(newOutcome);
+    const targetPlayer = teams.flatMap(t => t.players).find(p => p.id === (editBatsmanId || editingBall?.batsmanId));
+    const cat = targetPlayer?.category || editingBall?.batsmanCategory;
+    const isFemale = cat === 'FEMALE';
+    const isSeniorOrKid = cat === 'SENIOR' || cat === 'KID';
+    const isPwr = editIsPowerOver;
+
+    let runs = 0;
+    if (newOutcome === 'DOT') runs = 0;
+    else if (newOutcome === 'RUN_1') runs = isFemale ? 2 : 1;
+    else if (newOutcome === 'RUN_2') runs = isFemale ? 4 : 2;
+    else if (newOutcome === 'RUN_3') runs = isFemale ? 6 : 3;
+    else if (newOutcome === 'FOUR') runs = isFemale ? 9 : isSeniorOrKid ? 5 : 4;
+    else if (newOutcome === 'SIX') runs = isFemale ? 14 : isSeniorOrKid ? 8 : 6;
+    else if (newOutcome === 'DECLARATION_1D') runs = isFemale ? 2 : 1;
+    else if (newOutcome === 'WIDE') runs = 1;
+    else if (newOutcome === 'NO_BALL') runs = 1;
+    else if (newOutcome === 'BYE') runs = 1;
+    else if (newOutcome === 'WICKET') {
+      runs = isPwr ? (editIsCatchByFemale ? -7 : -5) : (editIsCatchByFemale ? -4 : -2);
+    }
+    if (isPwr && runs > 0 && newOutcome !== 'WIDE' && newOutcome !== 'NO_BALL' && newOutcome !== 'BYE') {
+      runs *= 2;
+    }
+    setEditEffectiveRuns(runs);
   };
 
   const handleSaveEditBall = async () => {
@@ -249,6 +286,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
         noBallType: editNoBallType,
         dismissalType: editDismissalType,
         isCatchByFemale: editIsCatchByFemale,
+        batsmanId: editBatsmanId,
+        bowlerId: editBowlerId,
+        isPowerOver: editIsPowerOver,
+        commentary: editCommentary,
       });
       setEditingBall(null);
     } catch (err: any) {
@@ -830,38 +871,58 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
       {/* Recent Deliveries Timeline */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Balls</span>
-          <span className="text-xs text-slate-500">{currentInnings.balls.length} total deliveries</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Balls</span>
+            <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+              💡 Tap any ball to edit
+            </span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => {
+                setSelectedInningsFilter(match.currentInningsIndex);
+                setSelectedOverFilter(currentOverNumber);
+                setShowOverHistoryModal(true);
+              }}
+              className="text-amber-400 hover:text-amber-300 text-xs font-bold underline flex items-center space-x-1"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Browse All Overs ({match.totalOvers} ov)</span>
+            </button>
+            <span className="text-xs text-slate-500">{currentInnings.balls.length} deliveries</span>
+          </div>
         </div>
         <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
           {recentBalls.length === 0 ? (
             <span className="text-xs text-slate-500 italic">No balls bowled yet in this innings.</span>
           ) : (
             recentBalls.map((b) => (
-              <div
+              <button
                 key={b.id}
-                className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm ${
+                type="button"
+                onClick={() => handleOpenEditBall(b)}
+                className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm cursor-pointer hover:scale-110 active:scale-95 transition-all ${
                   b.dismissal
-                    ? 'bg-rose-600 border-rose-400 text-white'
+                    ? 'bg-rose-600 border-rose-400 text-white ring-1 ring-rose-400/50'
                     : b.outcomeType === 'SIX'
-                    ? 'bg-amber-500 border-amber-300 text-slate-950 font-black'
+                    ? 'bg-amber-500 border-amber-300 text-slate-950 font-black ring-1 ring-amber-300/50'
                     : b.outcomeType === 'FOUR'
-                    ? 'bg-blue-600 border-blue-400 text-white font-black'
+                    ? 'bg-blue-600 border-blue-400 text-white font-black ring-1 ring-blue-400/50'
                     : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
                     ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
                     : b.outcomeType === 'DECLARATION_1D'
                     ? 'bg-purple-800 border-purple-500 text-purple-200'
                     : b.effectiveRuns === 0
                     ? 'bg-slate-800 border-slate-700 text-slate-400'
-                    : 'bg-emerald-800 border-emerald-600 text-emerald-100'
+                    : 'bg-emerald-800 border-emerald-600 text-emerald-100 ring-1 ring-emerald-400/30'
                 }`}
-                title={`${b.commentary} (${b.batsmanName})`}
+                title={`Click to edit ball ${b.overNumber}.${b.ballNumber}: ${b.commentary} (${b.batsmanName})`}
               >
                 <span>
                   {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
                 </span>
-              </div>
+              </button>
             ))
           )}
         </div>
@@ -1191,15 +1252,15 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
       {/* OVER LOG & BALL EDITOR MODAL */}
       {showOverHistoryModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] flex flex-col">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-shrink-0">
               <div>
                 <h3 className="text-xl font-black text-white flex items-center space-x-2">
                   <History className="w-5 h-5 text-amber-400" />
-                  <span>Over Ball Log & Editor</span>
+                  <span>Over Ball Log & Full Editor</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Select any specific over to review, correct runs, change outcome, or remove accidental deliveries.
+                  Select any over and innings to review, change outcome/runs, reassign batter/bowler, or delete accidental deliveries.
                 </p>
               </div>
               <button onClick={() => setShowOverHistoryModal(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
@@ -1207,10 +1268,38 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
               </button>
             </div>
 
+            {/* Innings Selector Tabs */}
+            <div className="flex items-center space-x-2 border-b border-slate-800 pb-2.5 flex-shrink-0 overflow-x-auto no-scrollbar">
+              {match.innings.map((inn, innIdx) => {
+                const innTeam = teams.find(t => t.id === inn.battingTeamId);
+                return (
+                  <button
+                    key={innIdx}
+                    onClick={() => {
+                      setSelectedInningsFilter(innIdx);
+                      setSelectedOverFilter(1);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap ${
+                      selectedInningsFilter === innIdx
+                        ? 'bg-amber-500 text-slate-950 shadow-md'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    <span>Innings {innIdx + 1}: {innTeam?.shortName || innTeam?.name || `Team ${innIdx + 1}`}</span>
+                    <span className="font-mono text-[10px] font-black opacity-80">
+                      ({inn.totalRuns}/{inn.totalWickets} in {inn.completedOvers}.{inn.currentOverBalls} ov)
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Over Selector Tabs */}
             <div className="flex items-center space-x-2 overflow-x-auto pb-2 flex-shrink-0 no-scrollbar">
               {Array.from({ length: match.totalOvers }, (_, i) => i + 1).map(ov => {
-                const ballsInOv = currentInnings.balls.filter(b => b.overNumber === ov);
+                const targetInnings = match.innings[selectedInningsFilter] || currentInnings;
+                const ballsInOv = targetInnings.balls.filter(b => b.overNumber === ov);
+                const overRuns = ballsInOv.reduce((sum, b) => sum + b.effectiveRuns, 0);
                 const isSelected = selectedOverFilter === ov;
                 return (
                   <button
@@ -1223,7 +1312,9 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                     }`}
                   >
                     <span>Over {ov}</span>
-                    <span className="text-[10px] ml-1.5 opacity-80">({ballsInOv.length} balls)</span>
+                    <span className="text-[10px] ml-1.5 opacity-80">
+                      ({ballsInOv.length} balls • {overRuns > 0 ? `+${overRuns}` : overRuns}r)
+                    </span>
                   </button>
                 );
               })}
@@ -1231,76 +1322,86 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
             {/* Balls in Selected Over List */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {currentInnings.balls.filter(b => b.overNumber === selectedOverFilter).length === 0 ? (
-                <div className="text-center py-12 text-slate-500 text-xs bg-slate-950/40 rounded-2xl border border-slate-800/60">
-                  No deliveries recorded in Over {selectedOverFilter} yet.
-                </div>
-              ) : (
-                currentInnings.balls
-                  .filter(b => b.overNumber === selectedOverFilter)
-                  .map((ball, idx) => (
-                    <div
-                      key={ball.id}
-                      className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-slate-700 transition"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="w-7 h-7 rounded-lg bg-slate-800 font-mono text-xs font-black text-amber-400 flex items-center justify-center border border-slate-700">
-                          {idx + 1}
-                        </span>
+              {(() => {
+                const targetInnings = match.innings[selectedInningsFilter] || currentInnings;
+                const overBalls = targetInnings.balls.filter(b => b.overNumber === selectedOverFilter);
+                if (overBalls.length === 0) {
+                  return (
+                    <div className="text-center py-12 text-slate-500 text-xs bg-slate-950/40 rounded-2xl border border-slate-800/60">
+                      No deliveries recorded in Over {selectedOverFilter} of Innings {selectedInningsFilter + 1} yet.
+                    </div>
+                  );
+                }
+                return overBalls.map((ball, idx) => (
+                  <div
+                    key={ball.id}
+                    className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-slate-700 transition"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="w-7 h-7 rounded-lg bg-slate-800 font-mono text-xs font-black text-amber-400 flex items-center justify-center border border-slate-700 shrink-0">
+                        {idx + 1}
+                      </span>
 
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase ${
-                          ball.dismissal
-                            ? 'bg-rose-600 text-white'
-                            : ball.outcomeType === 'SIX'
-                            ? 'bg-amber-500 text-slate-950'
-                            : ball.outcomeType === 'FOUR'
-                            ? 'bg-blue-600 text-white'
-                            : ball.outcomeType === 'WIDE' || ball.outcomeType === 'NO_BALL'
-                            ? 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
-                            : 'bg-slate-800 text-slate-200'
-                        }`}>
-                          {ball.dismissal ? 'WICKET' : ball.outcomeType.replace('_', ' ')}
-                        </span>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase shrink-0 ${
+                        ball.dismissal
+                          ? 'bg-rose-600 text-white'
+                          : ball.outcomeType === 'SIX'
+                          ? 'bg-amber-500 text-slate-950'
+                          : ball.outcomeType === 'FOUR'
+                          ? 'bg-blue-600 text-white'
+                          : ball.outcomeType === 'WIDE' || ball.outcomeType === 'NO_BALL'
+                          ? 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
+                          : 'bg-slate-800 text-slate-200'
+                      }`}>
+                        {ball.dismissal ? 'WICKET' : ball.outcomeType.replace('_', ' ')}
+                      </span>
 
-                        <div>
-                          <div className="text-xs font-bold text-white flex items-center space-x-1.5">
-                            <span>{ball.batsmanName}</span>
-                            <span className="text-slate-500">facing</span>
-                            <span className="text-slate-300">{ball.bowlerName}</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            {ball.commentary}
-                          </div>
+                      <div>
+                        <div className="text-xs font-bold text-white flex items-center space-x-1.5 flex-wrap">
+                          <span>{ball.batsmanName}</span>
+                          {getCategoryBadge(ball.batsmanCategory)}
+                          <span className="text-slate-500">facing</span>
+                          <span className="text-slate-300">{ball.bowlerName}</span>
+                          {ball.isPowerOver && (
+                            <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded border border-purple-500/30 font-bold">
+                              ⚡ Power Over
+                            </span>
+                          )}
                         </div>
-                      </div>
-
-                      <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
-                        <span className={`text-sm font-black font-mono ${
-                          ball.effectiveRuns < 0 ? 'text-rose-400' : ball.effectiveRuns > 0 ? 'text-emerald-400' : 'text-slate-400'
-                        }`}>
-                          {ball.effectiveRuns > 0 ? `+${ball.effectiveRuns}` : ball.effectiveRuns} runs
-                        </span>
-
-                        <div className="flex items-center space-x-1.5">
-                          <button
-                            onClick={() => handleOpenEditBall(ball)}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white transition"
-                            title="Edit this ball"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSelectedBall(ball.id)}
-                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-400 hover:text-white transition"
-                            title="Delete this ball"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {ball.commentary}
                         </div>
                       </div>
                     </div>
-                  ))
-              )}
+
+                    <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end shrink-0">
+                      <span className={`text-sm font-black font-mono ${
+                        ball.effectiveRuns < 0 ? 'text-rose-400' : ball.effectiveRuns > 0 ? 'text-emerald-400' : 'text-slate-400'
+                      }`}>
+                        {ball.effectiveRuns > 0 ? `+${ball.effectiveRuns}` : ball.effectiveRuns} runs
+                      </span>
+
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          onClick={() => handleOpenEditBall(ball)}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center space-x-1 transition active:scale-95"
+                          title="Edit this ball"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSelectedBall(ball.id)}
+                          className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-400 hover:text-white transition"
+                          title="Delete this ball"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex justify-end flex-shrink-0">
@@ -1318,25 +1419,77 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
       {/* EDIT INDIVIDUAL BALL SUB-MODAL */}
       {editingBall && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h4 className="text-base font-black text-white flex items-center space-x-2">
                 <Edit3 className="w-4 h-4 text-amber-400" />
-                <span>Edit Delivery: Over {editingBall.overNumber}</span>
+                <span>Edit Delivery: Over {editingBall.overNumber}.{editingBall.ballNumber}</span>
               </h4>
               <button onClick={() => setEditingBall(null)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3.5 text-xs">
+              {/* Batter & Bowler Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                    Batter Facing
+                  </label>
+                  <select
+                    value={editBatsmanId}
+                    onChange={(e) => {
+                      setEditBatsmanId(e.target.value);
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-semibold focus:outline-none"
+                  >
+                    {teams.flatMap(t => t.players).map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                    Bowler
+                  </label>
+                  <select
+                    value={editBowlerId}
+                    onChange={(e) => setEditBowlerId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-semibold focus:outline-none"
+                  >
+                    {teams.flatMap(t => t.players).map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Power Over Toggle */}
+              <label className="flex items-center space-x-2 text-xs text-purple-300 cursor-pointer bg-purple-950/40 p-2.5 rounded-xl border border-purple-800/50">
+                <input
+                  type="checkbox"
+                  checked={editIsPowerOver}
+                  onChange={(e) => {
+                    setEditIsPowerOver(e.target.checked);
+                  }}
+                  className="rounded border-purple-700 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="font-bold">⚡ Power Over Delivery (Runs doubled off bat / -5 wicket)</span>
+              </label>
+
               <div>
                 <label className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
                   Outcome Type
                 </label>
                 <select
                   value={editOutcomeType}
-                  onChange={(e) => setEditOutcomeType(e.target.value as BallOutcomeType)}
+                  onChange={(e) => handleEditOutcomeChange(e.target.value as BallOutcomeType)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-semibold focus:outline-none"
                 >
                   <option value="DOT">Dot Ball (0 runs)</option>
@@ -1364,7 +1517,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                     onChange={(e) => setEditNoBallType(e.target.value as 'NORMAL' | 'LEG_UPLIFT')}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-semibold focus:outline-none"
                   >
-                    <option value="NORMAL">Normal / Overstep (+1 & Free Hit)</option>
+                    <option value="NORMAL">Normal / Overstep (+1 & Free Hit Next)</option>
                     <option value="LEG_UPLIFT">Leg Uplift (+1, NO Free Hit)</option>
                   </select>
                 </div>
@@ -1395,10 +1548,18 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                       <input
                         type="checkbox"
                         checked={editIsCatchByFemale}
-                        onChange={(e) => setEditIsCatchByFemale(e.target.checked)}
+                        onChange={(e) => {
+                          setEditIsCatchByFemale(e.target.checked);
+                          if (editOutcomeType === 'WICKET') {
+                            const deduction = editIsPowerOver
+                              ? (e.target.checked ? -7 : -5)
+                              : (e.target.checked ? -4 : -2);
+                            setEditEffectiveRuns(deduction);
+                          }
+                        }}
                         className="rounded border-slate-700 text-pink-600 focus:ring-pink-500"
                       />
-                      <span className="font-bold">Caught by Female Player (-4 / -7 runs)</span>
+                      <span className="font-bold">Caught by Female Player (-4 standard / -7 power over)</span>
                     </label>
                   )}
                 </div>
@@ -1415,24 +1576,49 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-bold focus:outline-none"
                 />
               </div>
+
+              <div>
+                <label className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                  Commentary Note (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={editCommentary}
+                  onChange={(e) => setEditCommentary(e.target.value)}
+                  placeholder="e.g. Driven through covers for boundary"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white text-xs focus:outline-none"
+                />
+              </div>
             </div>
 
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
               <button
                 type="button"
-                onClick={() => setEditingBall(null)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveEditBall}
+                onClick={() => handleDeleteSelectedBall(editingBall.id)}
                 disabled={isSubmitting}
-                className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20"
+                className="px-3 py-2 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 text-xs font-bold border border-rose-800/40 flex items-center space-x-1"
               >
-                Save & Recalculate
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Ball</span>
               </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingBall(null)}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditBall}
+                  disabled={isSubmitting}
+                  className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20"
+                >
+                  Save & Recalculate
+                </button>
+              </div>
             </div>
           </div>
         </div>

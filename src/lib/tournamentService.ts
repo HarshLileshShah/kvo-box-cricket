@@ -855,6 +855,9 @@ export function updateBall(params: {
   noBallType?: 'NORMAL' | 'LEG_UPLIFT';
   dismissalType?: DismissalType;
   isCatchByFemale?: boolean;
+  batsmanId?: string;
+  bowlerId?: string;
+  isPowerOver?: boolean;
 }) {
   const state = getTournamentState();
   const match = state.matches.find(m => m.id === params.matchId);
@@ -873,6 +876,27 @@ export function updateBall(params: {
 
   if (!targetBall || !targetInnings) throw new Error('Ball not found');
 
+  if (params.batsmanId) {
+    const batsman = state.teams.flatMap(t => t.players).find(p => p.id === params.batsmanId);
+    if (batsman) {
+      targetBall.batsmanId = batsman.id;
+      targetBall.batsmanName = batsman.name;
+      targetBall.batsmanCategory = batsman.category;
+    }
+  }
+
+  if (params.bowlerId) {
+    const bowler = state.teams.flatMap(t => t.players).find(p => p.id === params.bowlerId);
+    if (bowler) {
+      targetBall.bowlerId = bowler.id;
+      targetBall.bowlerName = bowler.name;
+    }
+  }
+
+  if (params.isPowerOver !== undefined) {
+    targetBall.isPowerOver = params.isPowerOver;
+  }
+
   if (params.outcomeType) {
     targetBall.outcomeType = params.outcomeType;
     targetBall.isWide = params.outcomeType === 'WIDE';
@@ -886,18 +910,11 @@ export function updateBall(params: {
     targetBall.isFreeHit = params.noBallType !== 'LEG_UPLIFT';
   }
 
-  if (params.effectiveRuns !== undefined) {
-    targetBall.effectiveRuns = params.effectiveRuns;
-  }
-
-  if (params.commentary) {
-    targetBall.commentary = params.commentary;
-  }
-
   if (params.outcomeType === 'WICKET') {
-    const deduction = targetBall.isPowerOver
+    const defaultDeduction = targetBall.isPowerOver
       ? (params.isCatchByFemale ? -7 : -5)
       : (params.isCatchByFemale ? -4 : -2);
+    const deduction = params.effectiveRuns !== undefined ? params.effectiveRuns : defaultDeduction;
     targetBall.effectiveRuns = deduction;
     targetBall.dismissal = {
       type: params.dismissalType || 'CAUGHT',
@@ -905,8 +922,17 @@ export function updateBall(params: {
       caughtByFemale: params.isCatchByFemale,
       pointsDeducted: deduction,
     };
+  } else if (params.effectiveRuns !== undefined) {
+    targetBall.effectiveRuns = params.effectiveRuns;
+    if (params.outcomeType) {
+      targetBall.dismissal = undefined;
+    }
   } else if (params.outcomeType) {
     targetBall.dismissal = undefined;
+  }
+
+  if (params.commentary) {
+    targetBall.commentary = params.commentary;
   }
 
   recalculateInningsStats(targetInnings, match, state.teams);

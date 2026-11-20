@@ -427,6 +427,9 @@ export default function Home() {
             teams={teams} 
             allMatches={matches}
             onSelectMatch={setSelectedMatchId}
+            isAdmin={isAdmin}
+            onEditBall={handleEditBall}
+            onDeleteBall={handleDeleteBall}
           />
         )}
 
