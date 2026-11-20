@@ -101,15 +101,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="navbar-match-select"
                 value={selectedMatchId}
                 onChange={(e) => setSelectedMatchId(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-white focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate"
+                className="bg-transparent text-sm font-semibold text-white focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[240px] truncate"
               >
                 {matches.map((m) => {
                   const tA = teams.find(t => t.id === m.teamAId);
                   const tB = teams.find(t => t.id === m.teamBId);
+                  const isLive = m.status === 'LIVE';
                   return (
                     <option key={m.id} value={m.id} className="bg-slate-900 text-white">
-                      {m.stage === 'SEMI_FINAL' ? '[Semi] ' : m.stage === 'FINAL' ? '[Final] ' : '[League] '}
-                      {tA?.shortName || 'T1'} vs {tB?.shortName || 'T2'} ({m.status})
+                      {isLive ? '🔴 LIVE: ' : ''}
+                      {tA?.name || 'TBD'} vs {tB?.name || 'TBD'} ({m.status})
                     </option>
                   );
                 })}
@@ -168,6 +169,42 @@ export const Navbar: React.FC<NavbarProps> = ({
             );
           })}
         </nav>
+
+        {/* Multi-Live Matches Sub-Bar (when 2 or more matches are LIVE) */}
+        {matches.filter(m => m.status === 'LIVE').length > 1 && (
+          <div className="py-2 border-t border-slate-800/60 flex items-center space-x-2 overflow-x-auto no-scrollbar text-xs">
+            <span className="flex items-center space-x-1.5 text-rose-400 font-black uppercase text-[11px] whitespace-nowrap">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+              </span>
+              <span>Live Parallel:</span>
+            </span>
+            {matches.filter(m => m.status === 'LIVE').map(lm => {
+              const mA = teams.find(t => t.id === lm.teamAId);
+              const mB = teams.find(t => t.id === lm.teamBId);
+              const isSelected = lm.id === selectedMatchId;
+              const curInn = lm.innings[lm.currentInningsIndex];
+              return (
+                <button
+                  key={lm.id}
+                  onClick={() => setSelectedMatchId(lm.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap border ${
+                    isSelected
+                      ? 'bg-rose-600 text-white border-rose-500 shadow-md font-black'
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: mA?.color || '#3b82f6' }} />
+                  <span>{mA?.name || 'T1'} vs {mB?.name || 'T2'}</span>
+                  <span className="font-mono text-[10px] opacity-80">
+                    ({curInn?.totalRuns}/{curInn?.totalWickets})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </header>
   );

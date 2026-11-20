@@ -206,6 +206,58 @@ export default function Home() {
     await fetchState(true);
   };
 
+  const handleEditBall = async (params: any) => {
+    if (!isAdmin) {
+      setShowLoginModal(true);
+      throw new Error('Please sign in as Admin/Scorer to edit balls.');
+    }
+    const res = await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'EDIT_BALL', params }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to edit ball');
+    }
+    await fetchState(true);
+  };
+
+  const handleDeleteBall = async (params: any) => {
+    if (!isAdmin) {
+      setShowLoginModal(true);
+      throw new Error('Please sign in as Admin/Scorer to delete balls.');
+    }
+    const res = await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'DELETE_BALL', params }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete ball');
+    }
+    await fetchState(true);
+  };
+
+  const handleSetMatchStatus = async (matchId: string, status: any) => {
+    if (!isAdmin) {
+      setShowLoginModal(true);
+      return;
+    }
+    const res = await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'SET_MATCH_STATUS', params: { matchId, status } }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      alert(`Error: ${err.error || 'Failed to update match status'}`);
+      return;
+    }
+    await fetchState(true);
+  };
+
   const handleOpenPlaying8Modal = (match: Match) => {
     if (!isAdmin) {
       setShowLoginModal(true);
@@ -272,10 +324,13 @@ export default function Home() {
             <ScorerConsole
               match={activeMatch}
               teams={teams}
+              allMatches={matches}
               onRecordBall={handleRecordBall}
               onUndoBall={handleUndoBall}
               onUpdateParticipants={handleUpdateParticipants}
               onOpenPlaying8Modal={() => handleOpenPlaying8Modal(activeMatch)}
+              onEditBall={handleEditBall}
+              onDeleteBall={handleDeleteBall}
             />
           ) : (
             <div className="max-w-md mx-auto text-center py-16 px-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl space-y-4">
@@ -300,7 +355,12 @@ export default function Home() {
 
         {/* Public Live Scoreboard */}
         {activeTab === 'live-viewer' && activeMatch && (
-          <LiveScoreboard match={activeMatch} teams={teams} />
+          <LiveScoreboard 
+            match={activeMatch} 
+            teams={teams} 
+            allMatches={matches}
+            onSelectMatch={setSelectedMatchId}
+          />
         )}
 
         {/* Points Table & Semifinals */}
@@ -323,6 +383,7 @@ export default function Home() {
             onSelectMatch={setSelectedMatchId}
             setActiveTab={setActiveTab}
             onOpenPlaying8Modal={handleOpenPlaying8Modal}
+            onSetMatchStatus={handleSetMatchStatus}
           />
         )}
 

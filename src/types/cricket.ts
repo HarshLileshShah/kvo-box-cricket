@@ -55,6 +55,7 @@ export interface BallRecord {
   isFreeHit: boolean;
   isWide?: boolean;
   isNoBall?: boolean;
+  noBallType?: 'NORMAL' | 'LEG_UPLIFT';
   isBye?: boolean;
   dismissal?: {
     type: DismissalType;

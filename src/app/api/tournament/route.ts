@@ -11,7 +11,10 @@ import {
   saveTournamentState,
   getKVTournamentState,
   setKVTournamentState,
-  setInMemoryTournamentState
+  setInMemoryTournamentState,
+  updateBall,
+  deleteBall,
+  setMatchStatus
 } from '@/lib/tournamentService';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES } from '@/lib/mockData';
 
@@ -75,6 +78,18 @@ export async function POST(request: Request) {
       case 'SET_PLAYOFFS': {
         const matches = setPlayoffTeams(body.params);
         result = { matches };
+        break;
+      }
+      case 'EDIT_BALL': {
+        result = updateBall(body.params);
+        break;
+      }
+      case 'DELETE_BALL': {
+        result = deleteBall(body.params);
+        break;
+      }
+      case 'SET_MATCH_STATUS': {
+        result = setMatchStatus(body.params);
         break;
       }
       case 'RESET_TOURNAMENT': {

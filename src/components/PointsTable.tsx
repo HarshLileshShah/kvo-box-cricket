@@ -12,7 +12,8 @@ import {
   Settings2,
   Calendar,
   Flame,
-  Award
+  Award,
+  Lock
 } from 'lucide-react';
 
 interface PointsTableProps {
@@ -32,6 +33,10 @@ export const PointsTable: React.FC<PointsTableProps> = ({
 }) => {
   const standings = calculateLeagueStandings(teams, matches);
 
+  const leagueMatches = matches.filter(m => m.stage === 'LEAGUE');
+  const completedLeagueMatches = leagueMatches.filter(m => m.status === 'COMPLETED');
+  const isLeagueCompleted = leagueMatches.length > 0 && completedLeagueMatches.length === leagueMatches.length;
+
   const semi1Match = matches.find(m => m.id === 'match-semi-1');
   const semi2Match = matches.find(m => m.id === 'match-semi-2');
   const finalMatch = matches.find(m => m.id === 'match-final');
@@ -43,10 +48,13 @@ export const PointsTable: React.FC<PointsTableProps> = ({
 
   const [isUpdatingPlayoffs, setIsUpdatingPlayoffs] = useState(false);
 
-  // Auto-Qualify Top 4 Teams:
-  // Semi-Final 1: Rank 1 vs Rank 4
-  // Semi-Final 2: Rank 2 vs Rank 3
+  // Auto-Qualify Top 4 Teams (Only permitted after all league matches complete)
   const handleAutoAssignPlayoffs = async () => {
+    if (!isLeagueCompleted) {
+      alert(`Cannot seed Semifinals yet! All 9 league matches must be completed first (${completedLeagueMatches.length}/9 done).`);
+      return;
+    }
+
     const s1A = standings[0]?.teamId || teams[0]?.id;
     const s1B = standings[3]?.teamId || teams[3]?.id;
     const s2A = standings[1]?.teamId || teams[1]?.id;
@@ -74,6 +82,11 @@ export const PointsTable: React.FC<PointsTableProps> = ({
   };
 
   const handleManualApplyPlayoffs = async () => {
+    if (!isLeagueCompleted) {
+      alert(`Cannot update Semifinals yet! All 9 league matches must be completed first (${completedLeagueMatches.length}/9 done).`);
+      return;
+    }
+
     try {
       setIsUpdatingPlayoffs(true);
       await onSetPlayoffTeams({
@@ -214,6 +227,32 @@ export const PointsTable: React.FC<PointsTableProps> = ({
           </div>
         </div>
 
+        {/* League Completion Gating Banner */}
+        {!isLeagueCompleted ? (
+          <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3.5 text-amber-300 text-xs flex items-center space-x-2.5 shadow-sm">
+            <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span>
+              <strong>Semifinal Fixtures Locked:</strong> Playoff fixtures and qualification will officially unlock once all 9 league matches are completed (<strong>{completedLeagueMatches.length} of 9</strong> completed so far).
+            </span>
+          </div>
+        ) : (
+          <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3.5 text-emerald-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>
+                <strong>League Stage Completed!</strong> Top 4 teams officially confirmed for Semifinals.
+              </span>
+            </div>
+            <button
+              onClick={handleAutoAssignPlayoffs}
+              disabled={isUpdatingPlayoffs}
+              className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg shadow-md transition active:scale-95 whitespace-nowrap"
+            >
+              {isUpdatingPlayoffs ? 'Seeding...' : 'Auto-Seed Top 4 into Semis'}
+            </button>
+          </div>
+        )}
+
         {/* Visual Bracket Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Semi-Final 1 */}
@@ -226,34 +265,41 @@ export const PointsTable: React.FC<PointsTableProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <span className="text-xs font-bold text-white truncate mr-2">
-                  1. {teams.find(t => t.id === semi1Match?.teamAId)?.name || 'Rank 1'}
+                  1. {isLeagueCompleted && semi1Match?.teamAId ? (teams.find(t => t.id === semi1Match.teamAId)?.name || 'Rank 1') : 'Rank 1 (To Be Decided)'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold">
-                  {semi1Match?.innings[0]?.totalRuns ?? '-'}
+                  {isLeagueCompleted ? (semi1Match?.innings[0]?.totalRuns ?? '-') : '-'}
                 </span>
               </div>
               <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <span className="text-xs font-bold text-white truncate mr-2">
-                  4. {teams.find(t => t.id === semi1Match?.teamBId)?.name || 'Rank 4'}
+                  4. {isLeagueCompleted && semi1Match?.teamBId ? (teams.find(t => t.id === semi1Match.teamBId)?.name || 'Rank 4') : 'Rank 4 (To Be Decided)'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold">
-                  {semi1Match?.innings[1]?.totalRuns ?? '-'}
+                  {isLeagueCompleted ? (semi1Match?.innings[1]?.totalRuns ?? '-') : '-'}
                 </span>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                if (semi1Match) {
-                  onSelectMatch(semi1Match.id);
-                  setActiveTab('scorer');
-                }
-              }}
-              className="w-full py-2 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-center space-x-1"
-            >
-              <span>Score Semi-Final 1</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {isLeagueCompleted ? (
+              <button
+                onClick={() => {
+                  if (semi1Match) {
+                    onSelectMatch(semi1Match.id);
+                    setActiveTab('scorer');
+                  }
+                }}
+                className="w-full py-2 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-center space-x-1 transition"
+              >
+                <span>Score Semi-Final 1</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <div className="w-full py-2 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-500 text-xs font-bold flex items-center justify-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Locked ({completedLeagueMatches.length}/9 league done)</span>
+              </div>
+            )}
           </div>
 
           {/* Semi-Final 2 */}
@@ -266,34 +312,41 @@ export const PointsTable: React.FC<PointsTableProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <span className="text-xs font-bold text-white truncate mr-2">
-                  2. {teams.find(t => t.id === semi2Match?.teamAId)?.name || 'Rank 2'}
+                  2. {isLeagueCompleted && semi2Match?.teamAId ? (teams.find(t => t.id === semi2Match.teamAId)?.name || 'Rank 2') : 'Rank 2 (To Be Decided)'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold">
-                  {semi2Match?.innings[0]?.totalRuns ?? '-'}
+                  {isLeagueCompleted ? (semi2Match?.innings[0]?.totalRuns ?? '-') : '-'}
                 </span>
               </div>
               <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <span className="text-xs font-bold text-white truncate mr-2">
-                  3. {teams.find(t => t.id === semi2Match?.teamBId)?.name || 'Rank 3'}
+                  3. {isLeagueCompleted && semi2Match?.teamBId ? (teams.find(t => t.id === semi2Match.teamBId)?.name || 'Rank 3') : 'Rank 3 (To Be Decided)'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold">
-                  {semi2Match?.innings[1]?.totalRuns ?? '-'}
+                  {isLeagueCompleted ? (semi2Match?.innings[1]?.totalRuns ?? '-') : '-'}
                 </span>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                if (semi2Match) {
-                  onSelectMatch(semi2Match.id);
-                  setActiveTab('scorer');
-                }
-              }}
-              className="w-full py-2 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-center space-x-1"
-            >
-              <span>Score Semi-Final 2</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {isLeagueCompleted ? (
+              <button
+                onClick={() => {
+                  if (semi2Match) {
+                    onSelectMatch(semi2Match.id);
+                    setActiveTab('scorer');
+                  }
+                }}
+                className="w-full py-2 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-center space-x-1 transition"
+              >
+                <span>Score Semi-Final 2</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <div className="w-full py-2 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-500 text-xs font-bold flex items-center justify-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Locked ({completedLeagueMatches.length}/9 league done)</span>
+              </div>
+            )}
           </div>
 
           {/* Grand Final */}
@@ -309,34 +362,41 @@ export const PointsTable: React.FC<PointsTableProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <span className="text-xs font-bold text-white truncate mr-2">
-                  {teams.find(t => t.id === finalMatch?.teamAId)?.name || 'Winner Semi 1'}
+                  {isLeagueCompleted && finalMatch?.teamAId ? (teams.find(t => t.id === finalMatch.teamAId)?.name || 'Winner Semi 1') : 'Winner Semi 1 (TBD)'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold">
-                  {finalMatch?.innings[0]?.totalRuns ?? '-'}
+                  {isLeagueCompleted ? (finalMatch?.innings[0]?.totalRuns ?? '-') : '-'}
                 </span>
               </div>
               <div className="flex items-center justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <span className="text-xs font-bold text-white truncate mr-2">
-                  {teams.find(t => t.id === finalMatch?.teamBId)?.name || 'Winner Semi 2'}
+                  {isLeagueCompleted && finalMatch?.teamBId ? (teams.find(t => t.id === finalMatch.teamBId)?.name || 'Winner Semi 2') : 'Winner Semi 2 (TBD)'}
                 </span>
                 <span className="text-xs text-amber-400 font-bold">
-                  {finalMatch?.innings[1]?.totalRuns ?? '-'}
+                  {isLeagueCompleted ? (finalMatch?.innings[1]?.totalRuns ?? '-') : '-'}
                 </span>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                if (finalMatch) {
-                  onSelectMatch(finalMatch.id);
-                  setActiveTab('scorer');
-                }
-              }}
-              className="w-full py-2 bg-amber-500 hover:bg-amber-400 rounded-lg text-slate-950 text-xs font-black flex items-center justify-center space-x-1 shadow-md shadow-amber-500/20"
-            >
-              <span>Score Grand Final</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {isLeagueCompleted && finalMatch?.teamAId && finalMatch?.teamBId ? (
+              <button
+                onClick={() => {
+                  if (finalMatch) {
+                    onSelectMatch(finalMatch.id);
+                    setActiveTab('scorer');
+                  }
+                }}
+                className="w-full py-2 bg-amber-500 hover:bg-amber-400 rounded-lg text-slate-950 text-xs font-black flex items-center justify-center space-x-1 shadow-md shadow-amber-500/20 transition"
+              >
+                <span>Score Grand Final</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <div className="w-full py-2 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-500 text-xs font-bold flex items-center justify-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Locked (Pending Semifinals)</span>
+              </div>
+            )}
           </div>
         </div>
 

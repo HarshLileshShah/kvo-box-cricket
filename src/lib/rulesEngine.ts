@@ -6,6 +6,7 @@ export interface CalculateBallRunsParams {
   isPowerOver: boolean;
   extraBatRunsOnNoBall?: number; // runs run between wickets or hit on NB
   isCatchByFemale?: boolean;
+  noBallType?: 'NORMAL' | 'LEG_UPLIFT';
 }
 
 export interface CalculatedBallResult {
@@ -17,6 +18,7 @@ export interface CalculatedBallResult {
   isBoundary: boolean;
   isFour: boolean;
   isSix: boolean;
+  isFreeHitNext?: boolean;
   commentary: string;
 }
 
@@ -82,7 +84,8 @@ export function calculateBallOutcome(params: CalculateBallRunsParams): Calculate
   }
 
   // 3. EXTRAS: NO-BALL
-  // 1 run penalty + free hit.
+  // 1 run penalty + free hit (unless leg uplift).
+  // Official rule: If no ball is due to leg uplift, NO free hit is awarded.
   // Runs scored off the bat on a no-ball are doubled during power over.
   if (outcomeType === 'NO_BALL') {
     let batRuns = extraBatRunsOnNoBall;
@@ -93,6 +96,7 @@ export function calculateBallOutcome(params: CalculateBallRunsParams): Calculate
       batRuns = batRuns * 2;
     }
     const totalRuns = 1 + batRuns;
+    const isLegUplift = params.noBallType === 'LEG_UPLIFT';
 
     return {
       effectiveTeamRuns: totalRuns,
@@ -103,7 +107,10 @@ export function calculateBallOutcome(params: CalculateBallRunsParams): Calculate
       isBoundary: false,
       isFour: false,
       isSix: false,
-      commentary: `No Ball: 1 penalty run ${batRuns > 0 ? `+ ${batRuns} bat runs` : ''} + Free Hit!`,
+      isFreeHitNext: !isLegUplift,
+      commentary: isLegUplift
+        ? `No Ball (Leg Uplift): 1 penalty run ${batRuns > 0 ? `+ ${batRuns} bat runs ` : ''}(NO Free Hit per official rulebook).`
+        : `No Ball: 1 penalty run ${batRuns > 0 ? `+ ${batRuns} bat runs ` : ''}+ Free Hit on next ball!`,
     };
   }
 

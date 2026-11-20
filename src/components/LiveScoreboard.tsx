@@ -18,9 +18,16 @@ import {
 interface LiveScoreboardProps {
   match: Match;
   teams: Team[];
+  allMatches?: Match[];
+  onSelectMatch?: (id: string) => void;
 }
 
-export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ match, teams }) => {
+export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ 
+  match, 
+  teams, 
+  allMatches = [], 
+  onSelectMatch 
+}) => {
   const [showFullScorecard, setShowFullScorecard] = useState(false);
   const currentInnings = match.innings[match.currentInningsIndex];
   const battingTeam = teams.find(t => t.id === currentInnings.battingTeamId);
@@ -74,6 +81,47 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ match, teams }) 
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Parallel Live Matches Selector (when multiple matches are LIVE) */}
+      {allMatches.filter(m => m.status === 'LIVE').length > 1 && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center space-x-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+            </span>
+            <span className="text-xs font-black uppercase tracking-wider text-rose-400">
+              Multiple Matches Live Now:
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {allMatches.filter(m => m.status === 'LIVE').map(lm => {
+              const mA = teams.find(t => t.id === lm.teamAId);
+              const mB = teams.find(t => t.id === lm.teamBId);
+              const isSelected = lm.id === match.id;
+              const curInn = lm.innings[lm.currentInningsIndex];
+              return (
+                <button
+                  key={lm.id}
+                  onClick={() => onSelectMatch?.(lm.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border ${
+                    isSelected
+                      ? 'bg-rose-600 text-white border-rose-500 shadow-md ring-2 ring-rose-500/30 font-black'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: mA?.color || '#3b82f6' }} />
+                  <span>{mA?.shortName || 'T1'} vs {mB?.shortName || 'T2'}</span>
+                  <span className="font-mono text-[11px] opacity-80">
+                    ({curInn?.totalRuns}/{curInn?.totalWickets})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Broadcast Live Screen Header */}
       <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border border-emerald-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
         {/* Glow Effects */}
@@ -101,6 +149,64 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({ match, teams }) 
             <span className="bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-md font-bold border border-amber-500/30">
               {match.totalOvers} Overs
             </span>
+          </div>
+        </div>
+
+        {/* Prominent Matchup: Who is Playing With Whom */}
+        <div className="mt-4 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Team A */}
+            <div className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl border ${
+              currentInnings.battingTeamId === teamA?.id 
+                ? 'bg-slate-900 border-amber-500/60 ring-2 ring-amber-500/20' 
+                : 'bg-slate-950 border-slate-800'
+            }`}>
+              <span className="w-4 h-4 rounded-full ring-2 ring-white/20" style={{ backgroundColor: teamA?.color || '#3b82f6' }} />
+              <div>
+                <span className="text-base sm:text-xl font-black text-white block leading-tight">{teamA?.name || 'Team A'}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                  currentInnings.battingTeamId === teamA?.id ? 'text-amber-400 font-black' : 'text-slate-400'
+                }`}>
+                  {currentInnings.battingTeamId === teamA?.id ? '🏏 BATTING' : '⚾ FIELDING / BOWLING'}
+                </span>
+              </div>
+            </div>
+
+            <span className="text-amber-400 font-black text-xl italic px-1">VS</span>
+
+            {/* Team B */}
+            <div className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl border ${
+              currentInnings.battingTeamId === teamB?.id 
+                ? 'bg-slate-900 border-amber-500/60 ring-2 ring-amber-500/20' 
+                : 'bg-slate-950 border-slate-800'
+            }`}>
+              <span className="w-4 h-4 rounded-full ring-2 ring-white/20" style={{ backgroundColor: teamB?.color || '#ef4444' }} />
+              <div>
+                <span className="text-base sm:text-xl font-black text-white block leading-tight">{teamB?.name || 'Team B'}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                  currentInnings.battingTeamId === teamB?.id ? 'text-amber-400 font-black' : 'text-slate-400'
+                }`}>
+                  {currentInnings.battingTeamId === teamB?.id ? '🏏 BATTING' : '⚾ FIELDING / BOWLING'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Toss Info & Innings */}
+          <div className="text-xs text-slate-300 bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-800 space-y-1">
+            <div>
+              <span className="text-slate-400">Toss: </span>
+              {match.tossWinnerId ? (
+                <strong className="text-amber-300">
+                  {teams.find(t => t.id === match.tossWinnerId)?.name} won toss & elected to {match.tossDecision}
+                </strong>
+              ) : (
+                <span className="text-slate-500 italic">Pending toss</span>
+              )}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              Innings: <strong className="text-white">{match.currentInningsIndex + 1} of 2</strong> ({match.totalOvers} overs match)
+            </div>
           </div>
         </div>
 

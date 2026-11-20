@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Match, Team, TournamentRulesConfig, BallOutcomeType, DismissalType, PlayerCategory } from '@/types/cricket';
+import { Match, Team, MatchStatus, Innings, TournamentRulesConfig, BallOutcomeType, DismissalType, PlayerCategory } from '@/types/cricket';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES, createInitialInnings } from './mockData';
 import { calculateBallOutcome } from './rulesEngine';
 
@@ -149,6 +149,7 @@ export function recordBall(params: {
   dismissedPlayerId?: string;
   isCatchByFemale?: boolean;
   extraBatRunsOnNoBall?: number;
+  noBallType?: 'NORMAL' | 'LEG_UPLIFT';
   newStrikerId?: string;
   newNonStrikerId?: string;
   newBowlerId?: string;
@@ -159,6 +160,15 @@ export function recordBall(params: {
   if (matchIndex === -1) throw new Error('Match not found');
 
   const match = state.matches[matchIndex];
+
+  // Guard: Cannot score semifinals or finals before all league matches are finished
+  if (match.stage === 'SEMI_FINAL' || match.stage === 'FINAL') {
+    const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
+    if (incompleteLeague.length > 0) {
+      throw new Error(`Cannot score semifinals! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first.`);
+    }
+  }
+
   const inn = match.innings[match.currentInningsIndex];
   if (inn.isCompleted) throw new Error('Innings is already completed');
 
@@ -184,6 +194,7 @@ export function recordBall(params: {
     isPowerOver,
     extraBatRunsOnNoBall: params.extraBatRunsOnNoBall,
     isCatchByFemale: params.isCatchByFemale,
+    noBallType: params.noBallType,
   });
 
   const ballNumber = calc.isLegalDelivery ? inn.currentOverBalls + 1 : inn.currentOverBalls;
@@ -203,9 +214,10 @@ export function recordBall(params: {
     rawRuns: calc.rawRuns,
     effectiveRuns: calc.effectiveTeamRuns,
     isLegalDelivery: calc.isLegalDelivery,
-    isFreeHit: false,
+    isFreeHit: calc.isFreeHitNext || false,
     isWide: params.outcomeType === 'WIDE',
     isNoBall: params.outcomeType === 'NO_BALL',
+    noBallType: params.noBallType,
     isBye: params.outcomeType === 'BYE',
     dismissal: calc.isWicket
       ? {
@@ -511,6 +523,13 @@ export function setPlayoffTeams(params: {
   finalTeamBId?: string;
 }) {
   const state = getTournamentState();
+
+  // Guard: all league matches must be completed
+  const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
+  if (incompleteLeague.length > 0) {
+    throw new Error(`Cannot finalize Semifinals! ${incompleteLeague.length} league matches are still remaining.`);
+  }
+
   const semi1 = state.matches.find(m => m.id === 'match-semi-1');
   const semi2 = state.matches.find(m => m.id === 'match-semi-2');
   const finalMatch = state.matches.find(m => m.id === 'match-final');
@@ -544,4 +563,272 @@ export function setPlayoffTeams(params: {
 
   saveTournamentState(state);
   return state.matches;
+}
+
+/**
+ * Set Match Status (UPCOMING, LIVE, COMPLETED, TIED)
+ * Enables running 2 or more matches in parallel in LIVE mode!
+ */
+export function setMatchStatus(params: { matchId: string; status: MatchStatus }) {
+  const state = getTournamentState();
+  const match = state.matches.find(m => m.id === params.matchId);
+  if (!match) throw new Error('Match not found');
+
+  // Guard against starting semifinals if league matches are not done
+  if ((match.stage === 'SEMI_FINAL' || match.stage === 'FINAL') && params.status === 'LIVE') {
+    const incomplete = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
+    if (incomplete.length > 0) {
+      throw new Error(`Cannot start Semifinals! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first.`);
+    }
+  }
+
+  match.status = params.status;
+  saveTournamentState(state);
+  return match;
+}
+
+/**
+ * Recalculate Innings Stats from its balls array
+ * Allows seamless over/ball editing in any over!
+ */
+export function recalculateInningsStats(inn: Innings, match: Match, teams: Team[]) {
+  const battingTeam = teams.find(t => t.id === inn.battingTeamId);
+  const bowlingTeam = teams.find(t => t.id === inn.bowlingTeamId);
+
+  inn.totalRuns = 0;
+  inn.totalWickets = 0;
+  inn.completedOvers = 0;
+  inn.currentOverBalls = 0;
+
+  // Reset batsman stats
+  const bStats: Record<string, any> = {};
+  battingTeam?.players.forEach(p => {
+    bStats[p.id] = {
+      playerId: p.id,
+      name: p.name,
+      category: p.category,
+      runs: 0,
+      ballsFaced: 0,
+      fours: 0,
+      sixes: 0,
+      dismissalsCount: 0,
+    };
+  });
+  inn.batsmanStats = bStats;
+
+  // Reset bowler stats
+  const bwStats: Record<string, any> = {};
+  bowlingTeam?.players.forEach(p => {
+    bwStats[p.id] = {
+      playerId: p.id,
+      name: p.name,
+      oversBowled: 0,
+      legalBalls: 0,
+      runsConceded: 0,
+      wickets: 0,
+      wides: 0,
+      noBalls: 0,
+    };
+  });
+  inn.bowlerStats = bwStats;
+
+  // Replay all balls
+  inn.balls.forEach((ball, idx) => {
+    inn.totalRuns += ball.effectiveRuns;
+
+    if (ball.dismissal || ball.outcomeType === 'WICKET') {
+      inn.totalWickets += 1;
+    }
+
+    if (ball.isLegalDelivery) {
+      inn.currentOverBalls += 1;
+      if (inn.currentOverBalls >= 6) {
+        inn.completedOvers += 1;
+        inn.currentOverBalls = 0;
+      }
+    }
+
+    // Assign over number and ball number
+    ball.overNumber = inn.currentOverBalls === 0 && ball.isLegalDelivery ? inn.completedOvers : inn.completedOvers + 1;
+    ball.ballNumber = ball.isLegalDelivery ? (inn.currentOverBalls === 0 ? 6 : inn.currentOverBalls) : inn.currentOverBalls;
+
+    // Batter stats
+    if (ball.batsmanId && inn.batsmanStats[ball.batsmanId]) {
+      const bs = inn.batsmanStats[ball.batsmanId];
+      if (ball.isLegalDelivery) {
+        bs.ballsFaced += 1;
+      }
+      let r = 0;
+      if (ball.outcomeType === 'RUN_1') r = ball.batsmanCategory === 'FEMALE' ? 2 : 1;
+      else if (ball.outcomeType === 'RUN_2') r = ball.batsmanCategory === 'FEMALE' ? 4 : 2;
+      else if (ball.outcomeType === 'RUN_3') r = ball.batsmanCategory === 'FEMALE' ? 6 : 3;
+      else if (ball.outcomeType === 'FOUR') {
+        r = ball.batsmanCategory === 'FEMALE' ? 9 : (ball.batsmanCategory === 'SENIOR' || ball.batsmanCategory === 'KID') ? 5 : 4;
+      } else if (ball.outcomeType === 'SIX') {
+        r = ball.batsmanCategory === 'FEMALE' ? 14 : (ball.batsmanCategory === 'SENIOR' || ball.batsmanCategory === 'KID') ? 8 : 6;
+      } else if (ball.outcomeType === 'DECLARATION_1D') {
+        r = ball.batsmanCategory === 'FEMALE' ? 2 : 1;
+      } else if (ball.outcomeType === 'NO_BALL') {
+        r = Math.max(0, ball.effectiveRuns - 1);
+      }
+      if (ball.isPowerOver && r > 0 && ball.outcomeType !== 'NO_BALL') {
+        r *= 2;
+      }
+      bs.runs += r;
+      if (ball.outcomeType === 'FOUR') bs.fours += 1;
+      if (ball.outcomeType === 'SIX') bs.sixes += 1;
+      if (ball.dismissal) bs.dismissalsCount += 1;
+    }
+
+    // Bowler stats
+    if (ball.bowlerId && inn.bowlerStats[ball.bowlerId]) {
+      const bws = inn.bowlerStats[ball.bowlerId];
+      if (ball.outcomeType !== 'BYE') {
+        bws.runsConceded += ball.effectiveRuns;
+      }
+      if (ball.isLegalDelivery) {
+        bws.legalBalls += 1;
+        bws.oversBowled = Number((Math.floor(bws.legalBalls / 6) + (bws.legalBalls % 6) / 10).toFixed(1));
+      }
+      if (ball.dismissal && ball.dismissal.type !== 'RUN_OUT') {
+        bws.wickets += 1;
+      }
+      if (ball.outcomeType === 'WIDE') bws.wides += 1;
+      if (ball.outcomeType === 'NO_BALL') bws.noBalls += 1;
+    }
+
+    if (idx === inn.balls.length - 1) {
+      if (ball.bowlerId) inn.currentBowlerId = ball.bowlerId;
+      if (ball.batsmanId && ball.nonStrikerId) {
+        inn.currentPair = {
+          strikerId: ball.batsmanId,
+          nonStrikerId: ball.nonStrikerId,
+        };
+      }
+    }
+  });
+
+  // Check completion
+  if (inn.completedOvers >= match.totalOvers) {
+    inn.isCompleted = true;
+    if (match.currentInningsIndex === 1) {
+      match.status = 'COMPLETED';
+      const r1 = match.innings[0].totalRuns;
+      const r2 = match.innings[1].totalRuns;
+      if (r2 > r1) match.winnerId = match.innings[1].battingTeamId;
+      else if (r1 > r2) match.winnerId = match.innings[0].battingTeamId;
+      else match.status = 'TIED';
+    }
+  } else if (match.currentInningsIndex === 1) {
+    const target = match.innings[0].totalRuns + 1;
+    if (inn.totalRuns >= target) {
+      inn.isCompleted = true;
+      match.status = 'COMPLETED';
+      match.winnerId = inn.battingTeamId;
+    } else {
+      inn.isCompleted = false;
+      if (match.status === 'COMPLETED') match.status = 'LIVE';
+    }
+  } else {
+    inn.isCompleted = false;
+  }
+}
+
+/**
+ * Edit a specific historical ball in any over
+ */
+export function updateBall(params: {
+  matchId: string;
+  ballId: string;
+  outcomeType?: BallOutcomeType;
+  effectiveRuns?: number;
+  commentary?: string;
+  noBallType?: 'NORMAL' | 'LEG_UPLIFT';
+  dismissalType?: DismissalType;
+  isCatchByFemale?: boolean;
+}) {
+  const state = getTournamentState();
+  const match = state.matches.find(m => m.id === params.matchId);
+  if (!match) throw new Error('Match not found');
+
+  let targetBall: any;
+  let targetInnings: Innings | undefined;
+
+  for (const inn of match.innings) {
+    targetBall = inn.balls.find(b => b.id === params.ballId);
+    if (targetBall) {
+      targetInnings = inn;
+      break;
+    }
+  }
+
+  if (!targetBall || !targetInnings) throw new Error('Ball not found');
+
+  if (params.outcomeType) {
+    targetBall.outcomeType = params.outcomeType;
+    targetBall.isWide = params.outcomeType === 'WIDE';
+    targetBall.isNoBall = params.outcomeType === 'NO_BALL';
+    targetBall.isBye = params.outcomeType === 'BYE';
+    targetBall.isLegalDelivery = params.outcomeType !== 'WIDE' && params.outcomeType !== 'NO_BALL';
+  }
+
+  if (params.noBallType !== undefined) {
+    targetBall.noBallType = params.noBallType;
+    targetBall.isFreeHit = params.noBallType !== 'LEG_UPLIFT';
+  }
+
+  if (params.effectiveRuns !== undefined) {
+    targetBall.effectiveRuns = params.effectiveRuns;
+  }
+
+  if (params.commentary) {
+    targetBall.commentary = params.commentary;
+  }
+
+  if (params.outcomeType === 'WICKET') {
+    const deduction = targetBall.isPowerOver
+      ? (params.isCatchByFemale ? -7 : -5)
+      : (params.isCatchByFemale ? -4 : -2);
+    targetBall.effectiveRuns = deduction;
+    targetBall.dismissal = {
+      type: params.dismissalType || 'CAUGHT',
+      dismissedPlayerId: targetBall.batsmanId,
+      caughtByFemale: params.isCatchByFemale,
+      pointsDeducted: deduction,
+    };
+  } else if (params.outcomeType) {
+    targetBall.dismissal = undefined;
+  }
+
+  recalculateInningsStats(targetInnings, match, state.teams);
+  saveTournamentState(state);
+  return { match, ball: targetBall };
+}
+
+/**
+ * Delete a specific ball in any over
+ */
+export function deleteBall(params: {
+  matchId: string;
+  ballId: string;
+}) {
+  const state = getTournamentState();
+  const match = state.matches.find(m => m.id === params.matchId);
+  if (!match) throw new Error('Match not found');
+
+  let targetInnings: Innings | undefined;
+  for (const inn of match.innings) {
+    const idx = inn.balls.findIndex(b => b.id === params.ballId);
+    if (idx >= 0) {
+      inn.balls.splice(idx, 1);
+      targetInnings = inn;
+      break;
+    }
+  }
+
+  if (!targetInnings) throw new Error('Ball not found');
+
+  recalculateInningsStats(targetInnings, match, state.teams);
+  saveTournamentState(state);
+  return { match };
 }

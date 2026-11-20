@@ -380,13 +380,13 @@ export const INITIAL_MATCHES: Match[] = [
     notes: 'League Match 9 (8 overs)',
   },
 
-  // Playoff: Top 4 Advance to Semifinals
+  // Playoff: Top 4 Advance to Semifinals (TBD after league stage)
   // Semi-Final 1: Rank 1 vs Rank 4
   {
     id: 'match-semi-1',
     stage: 'SEMI_FINAL',
-    teamAId: 'team-royal-strikers', // Rank 1
-    teamBId: 'team-box-blasters', // Rank 4
+    teamAId: '',
+    teamBId: '',
     date: '2026-11-22',
     time: '18:00',
     boxVenue: 'Decathlon Turf Arena - Box 1',
@@ -394,18 +394,18 @@ export const INITIAL_MATCHES: Match[] = [
     status: 'UPCOMING',
     currentInningsIndex: 0,
     innings: [
-      createInitialInnings('team-royal-strikers', 'team-box-blasters', INITIAL_TEAMS),
-      createInitialInnings('team-box-blasters', 'team-royal-strikers', INITIAL_TEAMS),
+      createInitialInnings('', '', INITIAL_TEAMS),
+      createInitialInnings('', '', INITIAL_TEAMS),
     ],
-    notes: 'Semi-Final 1: Rank 1 vs Rank 4 (9 overs)',
+    notes: 'Semi-Final 1: Rank 1 vs Rank 4 (TBD after league stage)',
   },
 
   // Semi-Final 2: Rank 2 vs Rank 3
   {
     id: 'match-semi-2',
     stage: 'SEMI_FINAL',
-    teamAId: 'team-kutch-warriors', // Rank 2
-    teamBId: 'team-adior-titans', // Rank 3
+    teamAId: '',
+    teamBId: '',
     date: '2026-11-22',
     time: '19:15',
     boxVenue: 'Decathlon Turf Arena - Box 1',
@@ -413,18 +413,18 @@ export const INITIAL_MATCHES: Match[] = [
     status: 'UPCOMING',
     currentInningsIndex: 0,
     innings: [
-      createInitialInnings('team-kutch-warriors', 'team-adior-titans', INITIAL_TEAMS),
-      createInitialInnings('team-adior-titans', 'team-kutch-warriors', INITIAL_TEAMS),
+      createInitialInnings('', '', INITIAL_TEAMS),
+      createInitialInnings('', '', INITIAL_TEAMS),
     ],
-    notes: 'Semi-Final 2: Rank 2 vs Rank 3 (9 overs)',
+    notes: 'Semi-Final 2: Rank 2 vs Rank 3 (TBD after league stage)',
   },
 
   // Grand Final: Winner SF1 vs Winner SF2
   {
     id: 'match-final',
     stage: 'FINAL',
-    teamAId: 'team-royal-strikers',
-    teamBId: 'team-kutch-warriors',
+    teamAId: '',
+    teamBId: '',
     date: '2026-11-22',
     time: '20:45',
     boxVenue: 'Decathlon Turf Arena - Main Box',
@@ -432,9 +432,9 @@ export const INITIAL_MATCHES: Match[] = [
     status: 'UPCOMING',
     currentInningsIndex: 0,
     innings: [
-      createInitialInnings('team-royal-strikers', 'team-kutch-warriors', INITIAL_TEAMS),
-      createInitialInnings('team-kutch-warriors', 'team-royal-strikers', INITIAL_TEAMS),
+      createInitialInnings('', '', INITIAL_TEAMS),
+      createInitialInnings('', '', INITIAL_TEAMS),
     ],
-    notes: 'GRAND FINAL: Winner SF1 vs Winner SF2 (9 overs)',
+    notes: 'GRAND FINAL: Winner SF1 vs Winner SF2 (TBD after semifinals)',
   },
 ];

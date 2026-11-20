@@ -14,7 +14,9 @@ import {
   Flame,
   AlertTriangle,
   ShieldCheck,
-  Users
+  Users,
+  Lock,
+  Radio
 } from 'lucide-react';
 
 interface ScheduleManagerProps {
@@ -24,6 +26,7 @@ interface ScheduleManagerProps {
   onSelectMatch: (matchId: string) => void;
   setActiveTab: (tab: string) => void;
   onOpenPlaying8Modal: (match: Match) => void;
+  onSetMatchStatus?: (matchId: string, status: MatchStatus) => Promise<void>;
 }
 
 export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
@@ -33,6 +36,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   onSelectMatch,
   setActiveTab,
   onOpenPlaying8Modal,
+  onSetMatchStatus,
 }) => {
   const [filterStage, setFilterStage] = useState<'ALL' | 'LEAGUE' | 'PLAYOFFS'>('ALL');
   const [showAddMatchModal, setShowAddMatchModal] = useState(false);
@@ -222,10 +226,23 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
       {/* Fixtures Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredMatches.map(m => {
+          const isPlayoff = m.stage === 'SEMI_FINAL' || m.stage === 'FINAL';
+          const leagueMatches = matches.filter(matchItem => matchItem.stage === 'LEAGUE');
+          const completedLeagueMatches = leagueMatches.filter(matchItem => matchItem.status === 'COMPLETED');
+          const isLeagueIncomplete = isPlayoff && leagueMatches.length > 0 && completedLeagueMatches.length < leagueMatches.length;
+
           const tA = teams.find(t => t.id === m.teamAId);
           const tB = teams.find(t => t.id === m.teamBId);
           const isLive = m.status === 'LIVE';
           const isCompleted = m.status === 'COMPLETED';
+
+          const teamAName = isLeagueIncomplete
+            ? (m.stage === 'SEMI_FINAL' ? (m.id === 'match-semi-1' ? 'Rank 1 (To Be Decided)' : 'Rank 2 (To Be Decided)') : 'Winner SF1 (TBD)')
+            : (tA?.name || 'TBD');
+
+          const teamBName = isLeagueIncomplete
+            ? (m.stage === 'SEMI_FINAL' ? (m.id === 'match-semi-1' ? 'Rank 4 (To Be Decided)' : 'Rank 3 (To Be Decided)') : 'Winner SF2 (TBD)')
+            : (tB?.name || 'TBD');
 
           return (
             <div
@@ -247,17 +264,42 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                   <span className="text-[11px] text-slate-400 font-semibold">{m.totalOvers} Overs</span>
                 </div>
 
-                <span
-                  className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    isLive
-                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse'
-                      : isCompleted
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {m.status}
-                </span>
+                <div className="flex items-center space-x-2">
+                  {/* Status Badges & Quick Toggle */}
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                      isLive
+                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse'
+                        : isCompleted
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+
+                  {/* Parallel LIVE toggle button */}
+                  {!isLeagueIncomplete && onSetMatchStatus && (
+                    m.status !== 'LIVE' ? (
+                      <button
+                        onClick={() => onSetMatchStatus(m.id, 'LIVE')}
+                        className="px-2 py-0.5 rounded-md bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-700/60 text-[10px] font-black transition flex items-center space-x-1"
+                        title="Run this match in parallel as LIVE"
+                      >
+                        <Radio className="w-2.5 h-2.5 text-rose-400" />
+                        <span>Make Live</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onSetMatchStatus(m.id, 'UPCOMING')}
+                        className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-semibold transition"
+                        title="Set back to UPCOMING"
+                      >
+                        Set Upcoming
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
 
               {/* Teams & Scores */}
@@ -266,13 +308,13 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                   <div className="flex items-center space-x-2">
                     <span
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: tA?.color || '#3b82f6' }}
+                      style={{ backgroundColor: !isLeagueIncomplete && tA?.color ? tA.color : '#3b82f6' }}
                     />
-                    <span className="font-bold text-white text-base">{tA?.name}</span>
+                    <span className="font-bold text-white text-base">{teamAName}</span>
                   </div>
                   <span className="font-mono font-black text-amber-400 text-lg">
-                    {m.innings[0]?.totalRuns ?? '-'}
-                    {m.innings[0]?.totalRuns !== undefined && (
+                    {!isLeagueIncomplete ? (m.innings[0]?.totalRuns ?? '-') : '-'}
+                    {!isLeagueIncomplete && m.innings[0]?.totalRuns !== undefined && (
                       <span className="text-xs text-rose-400">/{m.innings[0].totalWickets}</span>
                     )}
                   </span>
@@ -282,20 +324,20 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                   <div className="flex items-center space-x-2">
                     <span
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: tB?.color || '#ef4444' }}
+                      style={{ backgroundColor: !isLeagueIncomplete && tB?.color ? tB.color : '#ef4444' }}
                     />
-                    <span className="font-bold text-white text-base">{tB?.name}</span>
+                    <span className="font-bold text-white text-base">{teamBName}</span>
                   </div>
                   <span className="font-mono font-black text-amber-400 text-lg">
-                    {m.innings[1]?.totalRuns ?? '-'}
-                    {m.innings[1]?.totalRuns !== undefined && (
+                    {!isLeagueIncomplete ? (m.innings[1]?.totalRuns ?? '-') : '-'}
+                    {!isLeagueIncomplete && m.innings[1]?.totalRuns !== undefined && (
                       <span className="text-xs text-rose-400">/{m.innings[1].totalWickets}</span>
                     )}
                   </span>
                 </div>
               </div>
 
-              {/* Match Meta: Date, Time, Venue */}
+              {/* Match Meta: Date, Time, Venue & Action Buttons */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800 text-xs text-slate-400">
                 <div className="flex items-center space-x-3">
                   <span className="flex items-center space-x-1">
@@ -305,34 +347,43 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => onOpenPlaying8Modal(m)}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 text-xs transition"
-                  >
-                    <Users className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{m.lineupSubmitted ? 'Playing 8 ✓' : 'Submit Playing 8'}</span>
-                  </button>
+                  {isLeagueIncomplete ? (
+                    <div className="text-[11px] font-bold text-rose-400 bg-rose-950/60 border border-rose-800/60 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 shadow-sm">
+                      <Lock className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Locked until all 9 league matches complete ({completedLeagueMatches.length}/9 done)</span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => onOpenPlaying8Modal(m)}
+                        className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 text-xs transition"
+                      >
+                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{m.lineupSubmitted ? 'Playing 8 ✓' : 'Submit Playing 8'}</span>
+                      </button>
 
-                  {m.status === 'UPCOMING' && (
-                    <button
-                      onClick={() => openTossModal(m)}
-                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-xs transition"
-                    >
-                      <Coins className="w-3.5 h-3.5" />
-                      <span>Conduct Toss</span>
-                    </button>
+                      {m.status === 'UPCOMING' && (
+                        <button
+                          onClick={() => openTossModal(m)}
+                          className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-xs transition"
+                        >
+                          <Coins className="w-3.5 h-3.5" />
+                          <span>Conduct Toss</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          onSelectMatch(m.id);
+                          setActiveTab(isLive ? 'scorer' : 'live-viewer');
+                        }}
+                        className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition"
+                      >
+                        <Gamepad2 className="w-3.5 h-3.5" />
+                        <span>{isLive ? 'Score Live' : 'View Match'}</span>
+                      </button>
+                    </>
                   )}
-
-                  <button
-                    onClick={() => {
-                      onSelectMatch(m.id);
-                      setActiveTab(isLive ? 'scorer' : 'live-viewer');
-                    }}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition"
-                  >
-                    <Gamepad2 className="w-3.5 h-3.5" />
-                    <span>{isLive ? 'Score Live' : 'View Match'}</span>
-                  </button>
                 </div>
               </div>
             </div>
