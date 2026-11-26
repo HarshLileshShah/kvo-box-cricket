@@ -16,7 +16,8 @@ import {
   deleteBall,
   setMatchStatus,
   resetMatch,
-  resetAllMatches
+  resetAllMatches,
+  syncOfficialSchedule
 } from '@/lib/tournamentService';
 import { fetchLiveDatabaseState, persistLiveDatabaseState } from '@/lib/db';
 import { verifyAdminCredentials } from '@/lib/authService';
@@ -120,6 +121,14 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: authRes.error || 'Incorrect admin password. Reset operation was rejected.' }, { status: 403 });
         }
         result = resetAllMatches(body.params);
+        break;
+      }
+      case 'SYNC_OFFICIAL_SCHEDULE': {
+        const authRes = verifyAdminCredentials(body.params?.loginId || 'admin', body.params?.password || '');
+        if (!authRes.success) {
+          return NextResponse.json({ error: authRes.error || 'Incorrect admin password.' }, { status: 403 });
+        }
+        result = syncOfficialSchedule();
         break;
       }
       default:

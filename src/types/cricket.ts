@@ -24,6 +24,7 @@ export interface Team {
   name: string;
   shortName: string;
   color: string;
+  logoUrl?: string;
   players: Player[];
   group?: string; // Optional legacy
 }

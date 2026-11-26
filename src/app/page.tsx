@@ -390,6 +390,26 @@ export default function Home() {
     });
   };
 
+  const handleSyncOfficialSchedule = async () => {
+    if (!isAdmin) {
+      setShowLoginModal(true);
+      return;
+    }
+    const res = await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'SYNC_OFFICIAL_SCHEDULE',
+        params: { loginId: adminUser?.loginId || 'admin' },
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to sync schedule');
+    }
+    await fetchState(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Navbar
@@ -481,6 +501,7 @@ export default function Home() {
             onOpenPlaying8Modal={handleOpenPlaying8Modal}
             onSetMatchStatus={handleSetMatchStatus}
             onResetMatch={promptResetMatch}
+            onSyncOfficialSchedule={handleSyncOfficialSchedule}
           />
         )}
 

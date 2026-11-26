@@ -70,11 +70,14 @@ export async function setKVTournamentState(state: TournamentState): Promise<bool
 }
 
 export function setInMemoryTournamentState(state: TournamentState) {
+  enrichStateWithOfficialLogosAndSchedule(state);
+  ensurePlayoffsReady(state);
   globalThis.__tournamentState = state;
 }
 
 export function getTournamentState(): TournamentState {
   if (globalThis.__tournamentState) {
+    enrichStateWithOfficialLogosAndSchedule(globalThis.__tournamentState);
     return globalThis.__tournamentState;
   }
 
@@ -86,6 +89,7 @@ export function getTournamentState(): TournamentState {
       if (!parsed.rules?.maxLeagueMatchesPerTeam) {
         parsed.rules = OFFICIAL_TOURNAMENT_RULES;
       }
+      enrichStateWithOfficialLogosAndSchedule(parsed);
       ensurePlayoffsReady(parsed);
       globalThis.__tournamentState = parsed;
       return parsed;
@@ -99,6 +103,7 @@ export function getTournamentState(): TournamentState {
     try {
       const content = fs.readFileSync(TMP_STATE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
+      enrichStateWithOfficialLogosAndSchedule(parsed);
       ensurePlayoffsReady(parsed);
       globalThis.__tournamentState = parsed;
       return parsed;
@@ -114,9 +119,105 @@ export function getTournamentState(): TournamentState {
     matches: INITIAL_MATCHES,
     lastUpdated: new Date().toISOString(),
   };
+  enrichStateWithOfficialLogosAndSchedule(fallback);
   ensurePlayoffsReady(fallback);
   saveTournamentState(fallback);
   return fallback;
+}
+
+const OFFICIAL_TEAM_ENRICHMENTS: Record<string, { name: string; shortName: string; color?: string; logoUrl: string }> = {
+  'team-party-hunterz-warriors': {
+    name: 'Party Hunterz',
+    shortName: 'PH',
+    color: '#3b82f6',
+    logoUrl: '/logos/party-hunterz.png',
+  },
+  'team-amsteel-inferno': {
+    name: 'Amsteel Inferno',
+    shortName: 'AI',
+    color: '#ef4444',
+    logoUrl: '/logos/amsteel-inferno.png',
+  },
+  'team-kraftech-titans': {
+    name: 'Kraftech Titans',
+    shortName: 'KT',
+    color: '#f59e0b',
+    logoUrl: '/logos/kraftech-titans.png',
+  },
+  'team-leofans-fanatics': {
+    name: 'Leo Fanatics',
+    shortName: 'LF',
+    color: '#eab308',
+    logoUrl: '/logos/leo-fanatics.png',
+  },
+  'team-truflo-strikers': {
+    name: 'Truflo Strikers',
+    shortName: 'TS',
+    color: '#e11d48',
+    logoUrl: '/logos/truflo-strikers.png',
+  },
+  'team-mavericks': {
+    name: 'Mavericks Royals',
+    shortName: 'MR',
+    color: '#2563eb',
+    logoUrl: '/logos/mavericks-royals.png',
+  },
+};
+
+export function enrichStateWithOfficialLogosAndSchedule(state: TournamentState) {
+  if (!state || !state.teams) return;
+
+  // 1. Enrich team names, short names, colors, and logos
+  state.teams.forEach(team => {
+    const enrichment = OFFICIAL_TEAM_ENRICHMENTS[team.id];
+    if (enrichment) {
+      team.logoUrl = enrichment.logoUrl;
+      if (team.name === 'Party Hunterz Warriors') team.name = enrichment.name;
+      if (team.name === 'LeoFans Fanatics') team.name = enrichment.name;
+      if (team.name === 'Mavericks') team.name = enrichment.name;
+      if (!team.shortName || team.shortName === 'PHW') team.shortName = enrichment.shortName;
+      if (team.shortName === 'MAV') team.shortName = enrichment.shortName;
+    }
+  });
+
+  // 2. If existing matches are still on the old schedule (e.g. Decathlon venue or old dates), auto-align to official fixtures!
+  const hasOldSchedule = state.matches?.some(m => 
+    m.boxVenue?.includes('Decathlon') || 
+    m.date === '2026-11-20' ||
+    m.date === '2026-11-21' ||
+    m.date === '2026-11-22'
+  );
+
+  if (hasOldSchedule) {
+    const anyMatchesPlayed = state.matches.some(m => m.innings?.some(inn => inn.balls?.length > 0));
+    if (!anyMatchesPlayed) {
+      state.matches = INITIAL_MATCHES;
+    } else {
+      INITIAL_MATCHES.forEach(officialM => {
+        const existing = state.matches.find(m => m.id === officialM.id);
+        if (existing) {
+          existing.date = officialM.date;
+          existing.time = officialM.time;
+          existing.boxVenue = officialM.boxVenue;
+          existing.notes = officialM.notes;
+        }
+      });
+    }
+  }
+}
+
+export function syncOfficialSchedule() {
+  const state = getTournamentState();
+  state.matches = INITIAL_MATCHES.map(m => ({
+    ...m,
+    innings: [
+      createInitialInnings(m.teamAId, m.teamBId, state.teams),
+      createInitialInnings(m.teamBId, m.teamAId, state.teams),
+    ] as [Innings, Innings],
+  }));
+  enrichStateWithOfficialLogosAndSchedule(state);
+  saveTournamentState(state);
+  return state;
 }
 
 function ensurePlayoffsReady(state: TournamentState) {

@@ -228,10 +228,14 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
                   : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800/60'
               }`}
             >
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: t.color || '#3b82f6' }}
-              />
+              {t.logoUrl ? (
+                <img src={t.logoUrl} alt={t.name} className="w-5 h-5 object-contain rounded p-0.5 bg-slate-950 shrink-0" />
+              ) : (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: t.color || '#3b82f6' }}
+                />
+              )}
               <span>{t.name}</span>
               <span className="text-[10px] text-slate-400">({t.players.length}/9)</span>
               {v.isCompliant ? (
@@ -248,25 +252,34 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
       {activeTeam && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-6 shadow-xl space-y-4 sm:space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-            <div>
-              <div className="flex items-center space-x-2">
-                <span
-                  className="w-3.5 h-3.5 rounded-full"
-                  style={{ backgroundColor: activeTeam.color || '#3b82f6' }}
+            <div className="flex items-center space-x-4">
+              {activeTeam.logoUrl && (
+                <img
+                  src={activeTeam.logoUrl}
+                  alt={activeTeam.name}
+                  className="w-14 h-14 object-contain rounded-2xl p-1 bg-slate-950 border border-slate-800 shadow-md shrink-0"
                 />
-                <span className="text-xs font-mono text-slate-400 uppercase">Code: {activeTeam.shortName}</span>
+              )}
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span
+                    className="w-3.5 h-3.5 rounded-full"
+                    style={{ backgroundColor: activeTeam.color || '#3b82f6' }}
+                  />
+                  <span className="text-xs font-mono text-slate-400 uppercase">Code: {activeTeam.shortName}</span>
+                </div>
+                <h3 className="text-2xl font-black text-white mt-1 flex items-center space-x-3">
+                  <span>{activeTeam.name}</span>
+                  <button
+                    onClick={openEditTeamModal}
+                    className="text-xs font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center space-x-1 transition"
+                    title="Change Team Name or Color"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Rename / Edit</span>
+                  </button>
+                </h3>
               </div>
-              <h3 className="text-2xl font-black text-white mt-1 flex items-center space-x-3">
-                <span>{activeTeam.name}</span>
-                <button
-                  onClick={openEditTeamModal}
-                  className="text-xs font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center space-x-1 transition"
-                  title="Change Team Name or Color"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Rename / Edit</span>
-                </button>
-              </h3>
             </div>
 
             <div className="flex items-center space-x-2">

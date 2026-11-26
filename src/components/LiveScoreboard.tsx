@@ -318,7 +318,15 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                   ? 'bg-slate-900 border-amber-500/60 ring-2 ring-amber-500/20'
                   : 'bg-slate-950 border-slate-800'
                 }`}>
-                <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamA?.color || '#3b82f6' }} />
+                {teamA?.logoUrl ? (
+                  <img
+                    src={teamA.logoUrl}
+                    alt={teamA.name}
+                    className="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg p-0.5 bg-slate-900 border border-slate-800 shrink-0 shadow-sm"
+                  />
+                ) : (
+                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamA?.color || '#3b82f6' }} />
+                )}
                 <div className="min-w-0">
                   <span className="text-sm sm:text-lg font-black text-white block leading-tight truncate">{teamA?.name || 'Team A'}</span>
                   <span className={`text-[10px] font-bold uppercase tracking-wider block ${currentInnings.battingTeamId === teamA?.id ? 'text-amber-400 font-black' : 'text-slate-400'
@@ -337,7 +345,15 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                   ? 'bg-slate-900 border-amber-500/60 ring-2 ring-amber-500/20'
                   : 'bg-slate-950 border-slate-800'
                 }`}>
-                <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamB?.color || '#ef4444' }} />
+                {teamB?.logoUrl ? (
+                  <img
+                    src={teamB.logoUrl}
+                    alt={teamB.name}
+                    className="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg p-0.5 bg-slate-900 border border-slate-800 shrink-0 shadow-sm"
+                  />
+                ) : (
+                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamB?.color || '#ef4444' }} />
+                )}
                 <div className="min-w-0">
                   <span className="text-sm sm:text-lg font-black text-white block leading-tight truncate">{teamB?.name || 'Team B'}</span>
                   <span className={`text-[10px] font-bold uppercase tracking-wider block ${currentInnings.battingTeamId === teamB?.id ? 'text-amber-400 font-black' : 'text-slate-400'
@@ -384,6 +400,13 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                 Currently Batting ({match.currentInningsIndex === 0 ? '1st Innings' : '2nd Innings'})
               </div>
               <h2 className="text-3xl sm:text-4xl font-black text-white mt-1 flex items-center space-x-3">
+                {battingTeam?.logoUrl && (
+                  <img
+                    src={battingTeam.logoUrl}
+                    alt={battingTeam.name}
+                    className="w-10 h-10 object-contain rounded-xl p-0.5 bg-slate-950 border border-slate-800 shadow-md shrink-0"
+                  />
+                )}
                 <span>{battingTeam?.name}</span>
               </h2>
 

@@ -518,9 +518,18 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-wider text-slate-400 font-bold">Batting Innings</span>
-              <h3 className="text-xl sm:text-3xl font-black text-white mt-0.5">{battingTeam?.name}</h3>
+            <div className="flex items-center space-x-3">
+              {battingTeam?.logoUrl && (
+                <img
+                  src={battingTeam.logoUrl}
+                  alt={battingTeam.name}
+                  className="w-10 h-10 object-contain rounded-xl p-0.5 bg-slate-950 border border-slate-800 shadow-md shrink-0"
+                />
+              )}
+              <div>
+                <span className="text-xs uppercase tracking-wider text-slate-400 font-bold">Batting Innings</span>
+                <h3 className="text-xl sm:text-3xl font-black text-white mt-0.5">{battingTeam?.name}</h3>
+              </div>
             </div>
 
             {/* Current Score Display */}

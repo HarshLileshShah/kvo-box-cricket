@@ -180,7 +180,21 @@ export const PointsTable: React.FC<PointsTableProps> = ({
                       </div>
                     </td>
                     <td className="p-3.5">
-                      <span className="font-black text-white text-sm">{s.teamName}</span>
+                      <div className="flex items-center space-x-2.5">
+                        {teams.find(t => t.id === s.teamId)?.logoUrl ? (
+                          <img
+                            src={teams.find(t => t.id === s.teamId)?.logoUrl}
+                            alt={s.teamName}
+                            className="w-6 h-6 object-contain rounded p-0.5 bg-slate-950 border border-slate-800 shrink-0"
+                          />
+                        ) : (
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: teams.find(t => t.id === s.teamId)?.color || '#3b82f6' }}
+                          />
+                        )}
+                        <span className="font-black text-white text-sm">{s.teamName}</span>
+                      </div>
                     </td>
                     <td className="p-3.5 text-center font-semibold">
                       <span className="bg-slate-800 px-2 py-0.5 rounded font-mono text-xs">

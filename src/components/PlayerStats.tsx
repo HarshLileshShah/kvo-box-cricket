@@ -441,7 +441,18 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
                         )}
                       </div>
                     </td>
-                    <td className="p-3 font-semibold text-slate-400">{p.teamName}</td>
+                    <td className="p-3 font-semibold text-slate-400">
+                      <div className="flex items-center space-x-1.5">
+                        {teams.find(t => t.id === p.teamId)?.logoUrl && (
+                          <img
+                            src={teams.find(t => t.id === p.teamId)?.logoUrl}
+                            alt={p.teamName}
+                            className="w-4 h-4 object-contain rounded shrink-0 bg-slate-950 p-0.5"
+                          />
+                        )}
+                        <span>{p.teamName}</span>
+                      </div>
+                    </td>
                     <td className="p-3">{getCategoryBadge(p.category)}</td>
                     <td className="p-3 text-right text-slate-400">{p.matchesPlayed}</td>
                     <td className="p-3 text-right font-mono font-bold text-emerald-400">
