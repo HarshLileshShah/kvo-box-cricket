@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Database
 } from 'lucide-react';
-import { Match, Team } from '@/types/cricket';
+import { Match, Team, UserRole } from '@/types/cricket';
 
 interface NavbarProps {
   activeTab: string;
@@ -26,7 +26,7 @@ interface NavbarProps {
   selectedMatchId: string;
   setSelectedMatchId: (id: string) => void;
   isAdmin: boolean;
-  adminUser: { loginId: string; name: string } | null;
+  adminUser: { loginId: string; name: string; role?: UserRole } | null;
   onOpenLogin: () => void;
   onLogout: () => void;
   onOpenDbConfig?: () => void;
@@ -134,14 +134,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="hidden sm:inline">Database</span>
                   </button>
                 )}
-                <div className="flex items-center space-x-1.5 bg-emerald-950/70 border border-emerald-600/50 rounded-xl px-2 sm:px-3 py-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-xs font-bold text-emerald-300 hidden md:inline">
-                    Admin: {adminUser?.loginId || 'Scorer'}
+                <div className={`flex items-center space-x-1.5 rounded-xl px-2 sm:px-3 py-1.5 border shadow-sm ${
+                  adminUser?.role === 'ADMIN' || adminUser?.loginId === 'admin'
+                    ? 'bg-amber-950/70 border-amber-600/50 text-amber-300'
+                    : 'bg-emerald-950/70 border-emerald-600/50 text-emerald-300'
+                }`}>
+                  <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${
+                    adminUser?.role === 'ADMIN' || adminUser?.loginId === 'admin'
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                  }`} />
+                  <span className="text-xs font-bold hidden sm:inline">
+                    {adminUser?.role === 'ADMIN' || adminUser?.loginId === 'admin'
+                      ? `Super Admin`
+                      : `Scorer: ${adminUser?.name?.split(' ')[0] || adminUser?.loginId || 'Official'}`}
+                  </span>
+                  <span className="text-[10px] sm:hidden font-black uppercase">
+                    {adminUser?.loginId || 'Admin'}
                   </span>
                   <button
                     onClick={onLogout}
-                    className="text-xs text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
+                    className="text-xs text-slate-400 hover:text-rose-400 p-0.5 rounded transition ml-1"
                     title="Sign Out"
                   >
                     <LogOut className="w-3.5 h-3.5" />

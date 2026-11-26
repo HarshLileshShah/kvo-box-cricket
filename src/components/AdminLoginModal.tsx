@@ -1,20 +1,27 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle, KeyRound, X } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, AlertCircle, KeyRound, X, CheckCircle2 } from 'lucide-react';
+import { UserRole } from '@/types/cricket';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: { loginId: string; name: string }) => void;
+  onLoginSuccess: (user: { loginId: string; name: string; role?: UserRole }) => void;
 }
+
+const PRESET_ACCOUNTS = [
+  { id: 'sagar', label: 'Sagar', role: 'Scorer', desc: 'Current Over Edit & Match Scoring', badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+  { id: 'bhavin', label: 'Bhavin', role: 'Scorer', desc: 'Current Over Edit & Match Scoring', badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+  { id: 'admin', label: 'Admin', role: 'Super Admin', desc: 'Full Access (All Past Overs Edit)', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+];
 
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
 }) => {
-  const [loginId, setLoginId] = useState('admin');
+  const [loginId, setLoginId] = useState('sagar');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +40,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'LOGIN',
-          loginId,
+          loginId: loginId.trim().toLowerCase(),
           password,
         }),
       });
@@ -68,13 +75,59 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </button>
 
         {/* Modal Header */}
-        <div className="flex items-center space-x-3 mb-6">
+        <div className="flex items-center space-x-3 mb-5">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
             <Lock className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white">Admin / Scorer Login</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Enter credentials to unlock scorer & tournament management</p>
+            <h3 className="text-xl font-black text-white">Scorer & Admin Login</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Select your account or enter credentials</p>
+          </div>
+        </div>
+
+        {/* Quick Account Selector Chips */}
+        <div className="mb-5 space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            Select Scorer / Admin Account
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {PRESET_ACCOUNTS.map((acc) => {
+              const isSelected = loginId.toLowerCase() === acc.id;
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => {
+                    setLoginId(acc.id);
+                    setError('');
+                  }}
+                  className={`p-2.5 rounded-xl border text-left transition flex flex-col items-start relative ${
+                    isSelected
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-sm'
+                      : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="font-bold text-xs capitalize">{acc.label}</span>
+                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                  </div>
+                  <span className={`text-[10px] px-1 py-0.2 rounded border font-semibold mt-1 ${acc.badgeColor}`}>
+                    {acc.role}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 mt-2">
+            {loginId.toLowerCase() === 'admin' ? (
+              <span className="text-amber-300 font-medium">
+                🛡️ <b>Super Admin:</b> Full access to edit & delete any past ball from any over.
+              </span>
+            ) : (
+              <span className="text-emerald-300 font-medium">
+                🏏 <b>Official Scorer ({loginId}):</b> Full scoring & ball controls for current over. Past overs require Super Admin.
+              </span>
+            )}
           </div>
         </div>
 
@@ -97,16 +150,19 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 required
                 value={loginId}
                 onChange={(e) => setLoginId(e.target.value)}
-                placeholder="e.g. admin"
+                placeholder="sagar / bhavin / admin"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                Password
+              </label>
+              <span className="text-[10px] text-slate-500">Default: kvo@2026</span>
+            </div>
             <div className="relative">
               <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -133,7 +189,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               disabled={isLoading}
               className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 transition active:scale-95 disabled:opacity-50"
             >
-              {isLoading ? 'Verifying...' : 'Sign In as Scorer / Admin'}
+              {isLoading ? 'Verifying...' : `Sign In as ${loginId || 'User'}`}
             </button>
           </div>
         </form>

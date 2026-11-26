@@ -1,3 +1,11 @@
+export type UserRole = 'ADMIN' | 'SCORER';
+
+export interface AuthUser {
+  loginId: string;
+  name: string;
+  role: UserRole;
+}
+
 export type PlayerCategory = 'FEMALE' | 'SENIOR' | 'KID' | 'REGULAR';
 
 export interface Player {

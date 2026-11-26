@@ -869,6 +869,30 @@ export function recalculateInningsStats(inn: Innings, match: Match, teams: Team[
 }
 
 /**
+ * Helper to determine if a ball belongs to the active current over of the match.
+ * Used for role-based authorization: Scorers can only edit/delete balls in the current over.
+ */
+export function isCurrentOver(
+  innings: Innings,
+  overNumber: number,
+  inningsIndex?: number,
+  currentInningsIndex?: number
+): boolean {
+  if (inningsIndex !== undefined && currentInningsIndex !== undefined && inningsIndex < currentInningsIndex) {
+    return false;
+  }
+  const currentOver = innings.completedOvers + 1;
+  if (overNumber === currentOver) {
+    return true;
+  }
+  // If the over just completed (currentOverBalls === 0) and next over hasn't bowled any balls yet:
+  if (innings.currentOverBalls === 0 && overNumber === innings.completedOvers && overNumber > 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Edit a specific historical ball in any over
  */
 export function updateBall(params: {
@@ -883,6 +907,8 @@ export function updateBall(params: {
   batsmanId?: string;
   bowlerId?: string;
   isPowerOver?: boolean;
+  loginId?: string;
+  userRole?: 'ADMIN' | 'SCORER';
 }) {
   const state = getTournamentState();
   const match = state.matches.find(m => m.id === params.matchId);
@@ -900,6 +926,18 @@ export function updateBall(params: {
   }
 
   if (!targetBall || !targetInnings) throw new Error('Ball not found');
+
+  // Role-based permission check:
+  // Scorers (sagar, bhavin) can ONLY edit the current over!
+  // Past overs require Super Admin ('admin')!
+  const role = params.userRole || (params.loginId?.toLowerCase() === 'admin' ? 'ADMIN' : 'SCORER');
+  if (role === 'SCORER') {
+    const innIdx = match.innings.indexOf(targetInnings);
+    const inCurrentOver = isCurrentOver(targetInnings, targetBall.overNumber, innIdx, match.currentInningsIndex);
+    if (!inCurrentOver) {
+      throw new Error(`Permission Denied: Scorer '${params.loginId || 'Scorer'}' cannot edit balls from past overs (Over ${targetBall.overNumber}). Only Super Admin can edit past overs.`);
+    }
+  }
 
   if (params.batsmanId) {
     const batsman = state.teams.flatMap(t => t.players).find(p => p.id === params.batsmanId);
@@ -971,22 +1009,38 @@ export function updateBall(params: {
 export function deleteBall(params: {
   matchId: string;
   ballId: string;
+  loginId?: string;
+  userRole?: 'ADMIN' | 'SCORER';
 }) {
   const state = getTournamentState();
   const match = state.matches.find(m => m.id === params.matchId);
   if (!match) throw new Error('Match not found');
 
+  let targetBall: any;
   let targetInnings: Innings | undefined;
   for (const inn of match.innings) {
-    const idx = inn.balls.findIndex(b => b.id === params.ballId);
-    if (idx >= 0) {
-      inn.balls.splice(idx, 1);
+    targetBall = inn.balls.find(b => b.id === params.ballId);
+    if (targetBall) {
       targetInnings = inn;
       break;
     }
   }
 
-  if (!targetInnings) throw new Error('Ball not found');
+  if (!targetBall || !targetInnings) throw new Error('Ball not found');
+
+  const role = params.userRole || (params.loginId?.toLowerCase() === 'admin' ? 'ADMIN' : 'SCORER');
+  if (role === 'SCORER') {
+    const innIdx = match.innings.indexOf(targetInnings);
+    const inCurrentOver = isCurrentOver(targetInnings, targetBall.overNumber, innIdx, match.currentInningsIndex);
+    if (!inCurrentOver) {
+      throw new Error(`Permission Denied: Scorer '${params.loginId || 'Scorer'}' cannot delete balls from past overs (Over ${targetBall.overNumber}). Only Super Admin can modify past overs.`);
+    }
+  }
+
+  const idx = targetInnings.balls.findIndex(b => b.id === params.ballId);
+  if (idx >= 0) {
+    targetInnings.balls.splice(idx, 1);
+  }
 
   recalculateInningsStats(targetInnings, match, state.teams);
   saveTournamentState(state);

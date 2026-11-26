@@ -13,7 +13,7 @@ import { AdminLoginModal } from '@/components/AdminLoginModal';
 import { Playing8Modal } from '@/components/Playing8Modal';
 import { ResetConfirmModal } from '@/components/ResetConfirmModal';
 import { DatabaseConfigModal } from '@/components/DatabaseConfigModal';
-import { Match, Team, TournamentRulesConfig } from '@/types/cricket';
+import { Match, Team, TournamentRulesConfig, AuthUser, UserRole } from '@/types/cricket';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES } from '@/lib/mockData';
 import { RefreshCw, Trophy, Lock, ShieldAlert, Database } from 'lucide-react';
 
@@ -28,7 +28,7 @@ export default function Home() {
 
   // Admin Auth State
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [adminUser, setAdminUser] = useState<{ loginId: string; name: string } | null>(null);
+  const [adminUser, setAdminUser] = useState<AuthUser | null>(null);
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
   const [showDbConfigModal, setShowDbConfigModal] = useState<boolean>(false);
 
@@ -44,7 +44,11 @@ export default function Home() {
         const parsed = JSON.parse(stored);
         if (parsed?.loginId) {
           setIsAdmin(true);
-          setAdminUser(parsed);
+          setAdminUser({
+            loginId: parsed.loginId,
+            name: parsed.name || parsed.loginId,
+            role: parsed.role || (parsed.loginId?.toLowerCase() === 'admin' ? 'ADMIN' : 'SCORER'),
+          });
         }
       }
     } catch (e) {
@@ -52,9 +56,13 @@ export default function Home() {
     }
   }, []);
 
-  const handleLoginSuccess = (user: { loginId: string; name: string }) => {
+  const handleLoginSuccess = (user: { loginId: string; name: string; role?: UserRole }) => {
     setIsAdmin(true);
-    setAdminUser(user);
+    setAdminUser({
+      loginId: user.loginId,
+      name: user.name || user.loginId,
+      role: user.role || (user.loginId?.toLowerCase() === 'admin' ? 'ADMIN' : 'SCORER'),
+    });
     setActiveTab('scorer');
   };
 
@@ -214,10 +222,18 @@ export default function Home() {
       setShowLoginModal(true);
       throw new Error('Please sign in as Admin/Scorer to edit balls.');
     }
+    const userRole = adminUser?.role || (adminUser?.loginId?.toLowerCase() === 'admin' ? 'ADMIN' : 'SCORER');
     const res = await fetch('/api/tournament', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'EDIT_BALL', params }),
+      body: JSON.stringify({
+        action: 'EDIT_BALL',
+        params: {
+          ...params,
+          loginId: adminUser?.loginId,
+          userRole,
+        },
+      }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -231,10 +247,18 @@ export default function Home() {
       setShowLoginModal(true);
       throw new Error('Please sign in as Admin/Scorer to delete balls.');
     }
+    const userRole = adminUser?.role || (adminUser?.loginId?.toLowerCase() === 'admin' ? 'ADMIN' : 'SCORER');
     const res = await fetch('/api/tournament', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'DELETE_BALL', params }),
+      body: JSON.stringify({
+        action: 'DELETE_BALL',
+        params: {
+          ...params,
+          loginId: adminUser?.loginId,
+          userRole,
+        },
+      }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -391,6 +415,7 @@ export default function Home() {
               match={activeMatch}
               teams={teams}
               allMatches={matches}
+              currentUser={adminUser}
               onRecordBall={handleRecordBall}
               onUndoBall={handleUndoBall}
               onUpdateParticipants={handleUpdateParticipants}
@@ -428,6 +453,7 @@ export default function Home() {
             allMatches={matches}
             onSelectMatch={setSelectedMatchId}
             isAdmin={isAdmin}
+            currentUser={adminUser}
             onEditBall={handleEditBall}
             onDeleteBall={handleDeleteBall}
           />
