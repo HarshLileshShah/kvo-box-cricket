@@ -13,8 +13,7 @@ import {
   Flame,
   Lock,
   LogOut,
-  ShieldCheck,
-  Database
+  ShieldCheck
 } from 'lucide-react';
 import { Match, Team, UserRole } from '@/types/cricket';
 
@@ -124,16 +123,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Admin Login / Logout Button */}
             {isAdmin ? (
               <div className="flex items-center space-x-1 sm:space-x-2">
-                {onOpenDbConfig && (
-                  <button
-                    onClick={onOpenDbConfig}
-                    className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl px-2 sm:px-2.5 py-1.5 text-xs font-bold transition shadow-sm"
-                    title="Configure Cloud Database Connection"
-                  >
-                    <Database className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden sm:inline">Database</span>
-                  </button>
-                )}
                 <div className={`flex items-center space-x-1.5 rounded-xl px-2 sm:px-3 py-1.5 border shadow-sm ${
                   adminUser?.role === 'ADMIN' || adminUser?.loginId === 'admin'
                     ? 'bg-amber-950/70 border-amber-600/50 text-amber-300'
