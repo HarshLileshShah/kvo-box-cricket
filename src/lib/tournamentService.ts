@@ -173,6 +173,9 @@ export function recordBall(params: {
   dismissalType?: DismissalType;
   dismissedPlayerId?: string;
   isCatchByFemale?: boolean;
+  fielderId?: string;
+  assistedFielderId?: string;
+  runOutType?: 'DIRECT' | 'ASSISTED';
   extraBatRunsOnNoBall?: number;
   noBallType?: 'NORMAL' | 'LEG_UPLIFT';
   newStrikerId?: string;
@@ -224,6 +227,27 @@ export function recordBall(params: {
 
   const ballNumber = calc.isLegalDelivery ? inn.currentOverBalls + 1 : inn.currentOverBalls;
 
+  const fielder = params.fielderId ? state.teams.flatMap(t => t.players).find(p => p.id === params.fielderId) : undefined;
+  const assistedFielder = params.assistedFielderId ? state.teams.flatMap(t => t.players).find(p => p.id === params.assistedFielderId) : undefined;
+
+  let customCommentary = calc.commentary;
+  if (calc.isWicket) {
+    const dType = params.dismissalType || 'CAUGHT';
+    if (dType === 'CAUGHT') {
+      customCommentary = `OUT! Caught by ${fielder?.name || 'fielder'}${params.isCatchByFemale ? ' (Female Catch: 2x reduction!)' : ''}`;
+    } else if (dType === 'RUN_OUT') {
+      if (params.runOutType === 'ASSISTED' && fielder && assistedFielder) {
+        customCommentary = `OUT! Assisted Run Out by ${fielder.name} & ${assistedFielder.name}!`;
+      } else {
+        customCommentary = `OUT! Direct Hit Run Out by ${fielder?.name || 'fielder'}!`;
+      }
+    } else if (dType === 'STUMPED') {
+      customCommentary = `OUT! Stumped by ${fielder?.name || 'wicketkeeper'}!`;
+    } else if (dType === 'BOWLED') {
+      customCommentary = `OUT! Clean bowled by ${bowler?.name || 'bowler'}!`;
+    }
+  }
+
   const ballRecord = {
     id: `ball-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     ballNumber,
@@ -249,10 +273,15 @@ export function recordBall(params: {
         type: params.dismissalType || 'CAUGHT',
         dismissedPlayerId: params.dismissedPlayerId || striker?.id || '',
         caughtByFemale: params.isCatchByFemale,
+        fielderId: fielder?.id,
+        fielderName: fielder?.name,
+        assistedFielderId: assistedFielder?.id,
+        assistedFielderName: assistedFielder?.name,
+        runOutType: params.runOutType,
         pointsDeducted: calc.effectiveTeamRuns,
       }
       : undefined,
-    commentary: calc.commentary,
+    commentary: customCommentary,
     timestamp: new Date().toISOString(),
   };
 
@@ -904,6 +933,9 @@ export function updateBall(params: {
   noBallType?: 'NORMAL' | 'LEG_UPLIFT';
   dismissalType?: DismissalType;
   isCatchByFemale?: boolean;
+  fielderId?: string;
+  assistedFielderId?: string;
+  runOutType?: 'DIRECT' | 'ASSISTED';
   batsmanId?: string;
   bowlerId?: string;
   isPowerOver?: boolean;
@@ -979,10 +1011,18 @@ export function updateBall(params: {
       : (params.isCatchByFemale ? -4 : -2);
     const deduction = params.effectiveRuns !== undefined ? params.effectiveRuns : defaultDeduction;
     targetBall.effectiveRuns = deduction;
+    const fielder = params.fielderId ? state.teams.flatMap(t => t.players).find(p => p.id === params.fielderId) : undefined;
+    const assistedFielder = params.assistedFielderId ? state.teams.flatMap(t => t.players).find(p => p.id === params.assistedFielderId) : undefined;
+
     targetBall.dismissal = {
-      type: params.dismissalType || 'CAUGHT',
+      type: params.dismissalType || targetBall.dismissal?.type || 'CAUGHT',
       dismissedPlayerId: targetBall.batsmanId,
-      caughtByFemale: params.isCatchByFemale,
+      caughtByFemale: params.isCatchByFemale !== undefined ? params.isCatchByFemale : targetBall.dismissal?.caughtByFemale,
+      fielderId: params.fielderId !== undefined ? params.fielderId : targetBall.dismissal?.fielderId,
+      fielderName: fielder ? fielder.name : (params.fielderId === '' ? undefined : targetBall.dismissal?.fielderName),
+      assistedFielderId: params.assistedFielderId !== undefined ? params.assistedFielderId : targetBall.dismissal?.assistedFielderId,
+      assistedFielderName: assistedFielder ? assistedFielder.name : (params.assistedFielderId === '' ? undefined : targetBall.dismissal?.assistedFielderName),
+      runOutType: params.runOutType || targetBall.dismissal?.runOutType,
       pointsDeducted: deduction,
     };
   } else if (params.effectiveRuns !== undefined) {

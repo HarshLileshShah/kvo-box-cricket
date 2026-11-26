@@ -19,6 +19,7 @@ export const RuleBookViewer: React.FC = () => {
 
   const sections = [
     { id: 'all', label: 'All Rules' },
+    { id: 'awards', label: 'Awards & Performance Points' },
     { id: 'team', label: 'Team Formation' },
     { id: 'batting', label: 'Batting & Pairs' },
     { id: 'bonus', label: 'Bonus Runs & Scoring' },
@@ -74,6 +75,163 @@ export const RuleBookViewer: React.FC = () => {
 
       {/* Rules Content Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* AWARDS & INDIVIDUAL PERFORMANCE POINTS */}
+        {(activeSection === 'all' || activeSection === 'awards') && (
+          <div className="md:col-span-2 bg-gradient-to-br from-slate-900 via-amber-950/20 to-slate-900 border border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
+              <div>
+                <span className="text-xs uppercase tracking-widest text-amber-400 font-bold">Official Scoring System</span>
+                <h3 className="text-xl sm:text-2xl font-black text-white mt-0.5 flex items-center space-x-2">
+                  <Trophy className="w-6 h-6 text-amber-400" />
+                  <span>Individual Performance Points & Best Player Awards</span>
+                </h3>
+              </div>
+              <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs px-3 py-1 rounded-full font-bold self-start sm:self-auto">
+                4 Best Player Categories
+              </span>
+            </div>
+
+            {/* 4 Official Awards */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center space-x-1.5">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Tournament Best Player Awards (4 Categories)</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-slate-950/70 border border-amber-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">Category 1</span>
+                  <h5 className="text-base font-black text-white mt-1">Best Male Player</h5>
+                  <p className="text-[11px] text-slate-400 mt-1">Highest total performance points among Male / Regular players</p>
+                </div>
+                <div className="bg-slate-950/70 border border-pink-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-black uppercase text-pink-400 tracking-wider">Category 2</span>
+                  <h5 className="text-base font-black text-white mt-1">Best Female Player</h5>
+                  <p className="text-[11px] text-slate-400 mt-1">Highest total performance points among Female players</p>
+                </div>
+                <div className="bg-slate-950/70 border border-cyan-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-black uppercase text-cyan-400 tracking-wider">Category 3</span>
+                  <h5 className="text-base font-black text-white mt-1">Best Kid Player</h5>
+                  <p className="text-[11px] text-slate-400 mt-1">Highest total performance points among Junior / Kid players</p>
+                </div>
+                <div className="bg-slate-950/70 border border-purple-500/30 rounded-2xl p-4">
+                  <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider">Category 4</span>
+                  <h5 className="text-base font-black text-white mt-1">Best Senior Player</h5>
+                  <p className="text-[11px] text-slate-400 mt-1">Highest total performance points among Senior Citizen players</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance Points Table Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              {/* Batting Points */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                <h5 className="text-xs font-black uppercase text-amber-400 tracking-wider border-b border-slate-800 pb-2">
+                  🏏 Batting Points
+                </h5>
+                <ul className="text-xs space-y-1.5 text-slate-300">
+                  <li className="flex justify-between">
+                    <span>Every actual run scored:</span>
+                    <strong className="text-emerald-400">+1 pt</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Four (additional bonus):</span>
+                    <strong className="text-emerald-400">+2 pts (6 total)</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Six (additional bonus):</span>
+                    <strong className="text-emerald-400">+3 pts (9 total)</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>1D declaration:</span>
+                    <strong className="text-emerald-400">+1 pt</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>2D declaration:</span>
+                    <strong className="text-emerald-400">+2 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Every dismissal (out):</span>
+                    <strong className="text-rose-400">-5 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Dot ball:</span>
+                    <strong className="text-slate-400">0 pts</strong>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Bowling Points */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                <h5 className="text-xs font-black uppercase text-purple-400 tracking-wider border-b border-slate-800 pb-2">
+                  🎯 Bowling Points
+                </h5>
+                <ul className="text-xs space-y-1.5 text-slate-300">
+                  <li className="flex justify-between">
+                    <span>Wicket (excluding run-outs):</span>
+                    <strong className="text-emerald-400">+10 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Dot ball:</span>
+                    <strong className="text-emerald-400">+2 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Wide ball:</span>
+                    <strong className="text-rose-400">-2 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>No-ball:</span>
+                    <strong className="text-rose-400">-2 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Actual run conceded off bat:</span>
+                    <strong className="text-rose-400">-0.5 pts / run</strong>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Fielding Points */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                <h5 className="text-xs font-black uppercase text-emerald-400 tracking-wider border-b border-slate-800 pb-2">
+                  🧤 Fielding Points
+                </h5>
+                <ul className="text-xs space-y-1.5 text-slate-300">
+                  <li className="flex justify-between">
+                    <span>Catch taken:</span>
+                    <strong className="text-emerald-400">+5 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Direct run-out:</span>
+                    <strong className="text-emerald-400">+8 pts</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Assisted run-out (max 2 fielders):</span>
+                    <strong className="text-emerald-400">+4 pts each</strong>
+                  </li>
+                  <li className="flex justify-between">
+                    <span>Stumping:</span>
+                    <strong className="text-emerald-400">+5 pts</strong>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Official Award Selection & Calculation Rules */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-xs space-y-2">
+              <h5 className="font-bold text-white uppercase tracking-wider text-[11px] text-amber-300">
+                Official Selection Rules & Criteria
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+                <div>• <strong>Scoring:</strong> Exclude Power Over and special batting multipliers.</div>
+                <div>• <strong>1D / 2D:</strong> Count runs only once, within actual runs.</div>
+                <div>• <strong>Eligibility:</strong> Same scoring for male, female, junior, and senior players.</div>
+                <div>• <strong>Matches:</strong> Only the three league matches count for tournament awards.</div>
+                <div>• <strong>Super Over:</strong> Exclude Super Over performances.</div>
+                <div>• <strong>Tie-breaker:</strong> Higher wickets, actual runs, fielding points, then fewer dismissals.</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 1. TEAM FORMATION & COMPULSORY PARTICIPATION */}
         {(activeSection === 'all' || activeSection === 'team') && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">

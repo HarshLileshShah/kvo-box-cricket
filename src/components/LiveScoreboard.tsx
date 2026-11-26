@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Match, Team, PlayerCategory, BallRecord, BallOutcomeType, DismissalType, UserRole } from '@/types/cricket';
+import { calculateSingleMatchPoints } from '@/lib/statsService';
 import {
   Tv,
   Flame,
@@ -53,6 +54,9 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
     const [editNoBallType, setEditNoBallType] = useState<'NORMAL' | 'LEG_UPLIFT'>('NORMAL');
     const [editDismissalType, setEditDismissalType] = useState<DismissalType>('CAUGHT');
     const [editIsCatchByFemale, setEditIsCatchByFemale] = useState(false);
+    const [editFielderId, setEditFielderId] = useState('');
+    const [editAssistedFielderId, setEditAssistedFielderId] = useState('');
+    const [editRunOutType, setEditRunOutType] = useState<'DIRECT' | 'ASSISTED'>('DIRECT');
     const [editBatsmanId, setEditBatsmanId] = useState('');
     const [editBowlerId, setEditBowlerId] = useState('');
     const [editIsPowerOver, setEditIsPowerOver] = useState(false);
@@ -85,6 +89,9 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
       setEditNoBallType(ball.noBallType || 'NORMAL');
       setEditDismissalType(ball.dismissal?.type || 'CAUGHT');
       setEditIsCatchByFemale(!!ball.dismissal?.caughtByFemale);
+      setEditFielderId(ball.dismissal?.fielderId || '');
+      setEditAssistedFielderId(ball.dismissal?.assistedFielderId || '');
+      setEditRunOutType(ball.dismissal?.runOutType || 'DIRECT');
       setEditBatsmanId(ball.batsmanId || '');
       setEditBowlerId(ball.bowlerId || '');
       setEditIsPowerOver(!!ball.isPowerOver);
@@ -131,6 +138,9 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
           noBallType: editNoBallType,
           dismissalType: editDismissalType,
           isCatchByFemale: editIsCatchByFemale,
+          fielderId: editFielderId,
+          assistedFielderId: editAssistedFielderId,
+          runOutType: editRunOutType,
           batsmanId: editBatsmanId,
           bowlerId: editBowlerId,
           isPowerOver: editIsPowerOver,
@@ -417,11 +427,53 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
 
           {/* Match Result Banner if Completed */}
           {match.status === 'COMPLETED' && (
-            <div className="mt-6 p-4 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-center text-amber-300 font-black text-base sm:text-lg flex items-center justify-center space-x-2">
-              <Trophy className="w-5 h-5 text-amber-400" />
-              <span>
-                {teams.find(t => t.id === match.winnerId)?.name} won the match!
-              </span>
+            <div className="mt-6 space-y-3">
+              <div className="p-4 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-center text-amber-300 font-black text-base sm:text-lg flex items-center justify-center space-x-2">
+                <Trophy className="w-5 h-5 text-amber-400" />
+                <span>
+                  {teams.find(t => t.id === match.winnerId)?.name} won the match!
+                </span>
+              </div>
+
+              {/* Player of the Match Card */}
+              {(() => {
+                const singlePoints = calculateSingleMatchPoints(match, teams);
+                const potm = Object.values(singlePoints).sort((a, b) => b.totalPoints - a.totalPoints)[0];
+                if (!potm || potm.totalPoints <= 0) return null;
+                return (
+                  <div className="bg-gradient-to-r from-amber-500/20 via-slate-900 to-amber-500/20 border border-amber-500/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-black shadow-md shrink-0 text-lg">
+                        ⭐
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-1.5 justify-center sm:justify-start">
+                          <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                            Player of the Match
+                          </span>
+                          <span className="text-xs text-slate-400">• {potm.teamName}</span>
+                        </div>
+                        <h4 className="text-lg font-black text-white">{potm.name}</h4>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      <div className="text-center sm:text-right">
+                        <span className="text-xs text-slate-400 block font-semibold">Match Performance</span>
+                        <div className="text-xs text-slate-300 font-bold space-x-2">
+                          <span>Bat: <strong className="text-emerald-400">{potm.battingPoints}</strong></span>
+                          <span>Bowl: <strong className="text-purple-400">{potm.bowlingPoints}</strong></span>
+                          <span>Field: <strong className="text-blue-400">{potm.fieldingPoints}</strong></span>
+                        </div>
+                      </div>
+                      <div className="border-l border-slate-700 pl-4 text-center sm:text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Total</span>
+                        <span className="text-2xl font-black text-amber-400">{potm.totalPoints} pts</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -1063,7 +1115,7 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
 
                 {/* If Wicket */}
                 {editOutcomeType === 'WICKET' && (
-                  <div className="space-y-2 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+                  <div className="space-y-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
                     <div>
                       <label className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
                         Dismissal Type
@@ -1082,23 +1134,117 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                     </div>
 
                     {editDismissalType === 'CAUGHT' && (
-                      <label className="flex items-center space-x-2 text-xs text-pink-300 cursor-pointer pt-1">
-                        <input
-                          type="checkbox"
-                          checked={editIsCatchByFemale}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-amber-400 block">
+                          Caught By Fielder (+5 Fielding Pts)
+                        </label>
+                        <select
+                          value={editFielderId}
                           onChange={(e) => {
-                            setEditIsCatchByFemale(e.target.checked);
-                            if (editOutcomeType === 'WICKET') {
-                              const deduction = editIsPowerOver
-                                ? (e.target.checked ? -7 : -5)
-                                : (e.target.checked ? -4 : -2);
+                            const fId = e.target.value;
+                            setEditFielderId(fId);
+                            const chosen = teams.flatMap(t => t.players).find(p => p.id === fId);
+                            if (chosen?.category === 'FEMALE') {
+                              setEditIsCatchByFemale(true);
+                              const deduction = editIsPowerOver ? -7 : -4;
                               setEditEffectiveRuns(deduction);
                             }
                           }}
-                          className="rounded border-slate-700 text-pink-600 focus:ring-pink-500"
-                        />
-                        <span className="font-bold">Caught by Female Player (-4 standard / -7 power over)</span>
-                      </label>
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="">-- Select Fielder --</option>
+                          {teams.flatMap(t => t.players).map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({p.category})
+                            </option>
+                          ))}
+                        </select>
+
+                        <label className="flex items-center space-x-2 text-xs text-pink-300 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={editIsCatchByFemale}
+                            onChange={(e) => {
+                              setEditIsCatchByFemale(e.target.checked);
+                              if (editOutcomeType === 'WICKET') {
+                                const deduction = editIsPowerOver
+                                  ? (e.target.checked ? -7 : -5)
+                                  : (e.target.checked ? -4 : -2);
+                                setEditEffectiveRuns(deduction);
+                              }
+                            }}
+                            className="rounded border-slate-700 text-pink-600 focus:ring-pink-500"
+                          />
+                          <span className="font-bold">Caught by Female Player (-4 standard / -7 power over)</span>
+                        </label>
+                      </div>
+                    )}
+
+                    {editDismissalType === 'RUN_OUT' && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditRunOutType('DIRECT')}
+                            className={`p-1.5 rounded text-xs font-bold ${
+                              editRunOutType === 'DIRECT' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            Direct Hit (+8 pts)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRunOutType('ASSISTED')}
+                            className={`p-1.5 rounded text-xs font-bold ${
+                              editRunOutType === 'ASSISTED' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            Assisted (+4 pts each)
+                          </button>
+                        </div>
+
+                        <select
+                          value={editFielderId}
+                          onChange={(e) => setEditFielderId(e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="">-- {editRunOutType === 'DIRECT' ? 'Select Direct Fielder (+8)' : 'Primary Fielder (+4)'} --</option>
+                          {teams.flatMap(t => t.players).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                          ))}
+                        </select>
+
+                        {editRunOutType === 'ASSISTED' && (
+                          <select
+                            value={editAssistedFielderId}
+                            onChange={(e) => setEditAssistedFielderId(e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                          >
+                            <option value="">-- Secondary Fielder (+4) --</option>
+                            {teams.flatMap(t => t.players).map(p => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                    {editDismissalType === 'STUMPED' && (
+                      <div>
+                        <label className="text-xs font-bold text-amber-400 block mb-1">
+                          Keeper / Fielder who Stumped (+5)
+                        </label>
+                        <select
+                          value={editFielderId}
+                          onChange={(e) => setEditFielderId(e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="">-- Select Keeper / Fielder --</option>
+                          {teams.flatMap(t => t.players).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                          ))}
+                        </select>
+                      </div>
                     )}
                   </div>
                 )}

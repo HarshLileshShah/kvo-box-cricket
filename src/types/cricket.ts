@@ -73,6 +73,10 @@ export interface BallRecord {
     dismissedPlayerId: string;
     caughtByFemale?: boolean;
     fielderName?: string;
+    fielderId?: string;
+    assistedFielderId?: string;
+    assistedFielderName?: string;
+    runOutType?: 'DIRECT' | 'ASSISTED';
     pointsDeducted: number; // e.g. -2 normal, -5 power, -7 if caught by female in power over
   };
   commentary: string;
@@ -204,4 +208,51 @@ export interface TournamentRulesConfig {
     normalRuns: number;
     femaleRuns: number;
   };
+}
+
+/**
+ * Individual Performance Points as per KVO Box Cricket 2026 scoring rules
+ */
+export interface PlayerPerformancePoints {
+  playerId: string;
+  name: string;
+  teamId: string;
+  teamName: string;
+  category: PlayerCategory;
+  matchesPlayed: number;
+
+  // Batting (Every actual run = 1, Four = +2 bonus, Six = +3 bonus, 1D = 1, 2D = 2, Dismissal = -5, Dot = 0)
+  actualRunsScored: number;
+  foursCount: number;
+  sixesCount: number;
+  dismissalsCount: number;
+  battingPoints: number;
+
+  // Bowling (Wicket excl. run-outs = 10, Dot = 2, Wide = -2, No-ball = -2, Actual run off bat = -0.5)
+  wicketsCount: number; // excluding run-outs
+  dotBallsCount: number;
+  widesCount: number;
+  noBallsCount: number;
+  runsConcededOffBat: number;
+  bowlingPoints: number;
+
+  // Fielding (Catch = 5, Direct run-out = 8, Assisted run-out = 4 each, Stumping = 5)
+  catchesCount: number;
+  directRunOutsCount: number;
+  assistedRunOutsCount: number;
+  stumpingsCount: number;
+  fieldingPoints: number;
+
+  // Total
+  totalPoints: number;
+
+  // Match Honors
+  potmCount: number;
+}
+
+export interface CategoryAwardsSummary {
+  bestMale: PlayerPerformancePoints | null;
+  bestFemale: PlayerPerformancePoints | null;
+  bestKid: PlayerPerformancePoints | null;
+  bestSenior: PlayerPerformancePoints | null;
 }

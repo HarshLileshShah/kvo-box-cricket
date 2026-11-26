@@ -66,6 +66,9 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const [wicketType, setWicketType] = useState<DismissalType>('CAUGHT');
   const [isCatchByFemale, setIsCatchByFemale] = useState(false);
   const [dismissedWho, setDismissedWho] = useState<'STRIKER' | 'NON_STRIKER'>('STRIKER');
+  const [fielderId, setFielderId] = useState('');
+  const [assistedFielderId, setAssistedFielderId] = useState('');
+  const [runOutType, setRunOutType] = useState<'DIRECT' | 'ASSISTED'>('DIRECT');
   
   // No-Ball Modal State (Leg Uplift vs Normal)
   const [showNoBallModal, setShowNoBallModal] = useState(false);
@@ -82,6 +85,9 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const [editNoBallType, setEditNoBallType] = useState<'NORMAL' | 'LEG_UPLIFT'>('NORMAL');
   const [editDismissalType, setEditDismissalType] = useState<DismissalType>('CAUGHT');
   const [editIsCatchByFemale, setEditIsCatchByFemale] = useState(false);
+  const [editFielderId, setEditFielderId] = useState('');
+  const [editAssistedFielderId, setEditAssistedFielderId] = useState('');
+  const [editRunOutType, setEditRunOutType] = useState<'DIRECT' | 'ASSISTED'>('DIRECT');
   const [editBatsmanId, setEditBatsmanId] = useState('');
   const [editBowlerId, setEditBowlerId] = useState('');
   const [editIsPowerOver, setEditIsPowerOver] = useState(false);
@@ -265,6 +271,9 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
     setEditNoBallType(ball.noBallType || 'NORMAL');
     setEditDismissalType(ball.dismissal?.type || 'CAUGHT');
     setEditIsCatchByFemale(!!ball.dismissal?.caughtByFemale);
+    setEditFielderId(ball.dismissal?.fielderId || '');
+    setEditAssistedFielderId(ball.dismissal?.assistedFielderId || '');
+    setEditRunOutType(ball.dismissal?.runOutType || 'DIRECT');
     setEditBatsmanId(ball.batsmanId || '');
     setEditBowlerId(ball.bowlerId || '');
     setEditIsPowerOver(!!ball.isPowerOver);
@@ -311,6 +320,9 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
         noBallType: editNoBallType,
         dismissalType: editDismissalType,
         isCatchByFemale: editIsCatchByFemale,
+        fielderId: editFielderId,
+        assistedFielderId: editAssistedFielderId,
+        runOutType: editRunOutType,
         batsmanId: editBatsmanId,
         bowlerId: editBowlerId,
         isPowerOver: editIsPowerOver,
@@ -355,9 +367,15 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
         dismissalType: wicketType,
         isCatchByFemale,
         dismissedPlayerId,
+        fielderId: (wicketType === 'CAUGHT' || wicketType === 'RUN_OUT' || wicketType === 'STUMPED') ? fielderId : undefined,
+        assistedFielderId: (wicketType === 'RUN_OUT' && runOutType === 'ASSISTED') ? assistedFielderId : undefined,
+        runOutType: wicketType === 'RUN_OUT' ? runOutType : undefined,
       });
       setShowWicketModal(false);
       setIsCatchByFemale(false);
+      setFielderId('');
+      setAssistedFielderId('');
+      setRunOutType('DIRECT');
     } catch (err: any) {
       alert(`Error recording wicket: ${err.message}`);
     } finally {
@@ -1053,24 +1071,152 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
               </select>
             </div>
 
-            {/* Special Female Catch Checkbox */}
+            {/* Special Female Catch Checkbox & Fielder attribution */}
             {wicketType === 'CAUGHT' && (
-              <label className="flex items-start space-x-3 bg-pink-950/30 border border-pink-500/30 p-3 rounded-lg cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isCatchByFemale}
-                  onChange={(e) => setIsCatchByFemale(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-pink-600 focus:ring-pink-500"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-pink-300 block">Caught by Female Player?</span>
-                  <span className="text-slate-400 text-[11px]">
-                    {isPowerOver
-                      ? 'Rule: 5 + 2 = 7 runs deducted in Power Over (-7)!'
-                      : 'Rule: 2 + 2 = 4 runs deducted (-2 dismissal + -2 female catch reduction)!'}
-                  </span>
+              <div className="space-y-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                <div>
+                  <label className="text-xs font-bold text-amber-400 uppercase tracking-wider block mb-1">
+                    Caught By Fielder (+5 Fielding Pts)
+                  </label>
+                  <select
+                    value={fielderId}
+                    onChange={(e) => {
+                      const fId = e.target.value;
+                      setFielderId(fId);
+                      const chosen = bowlingTeam?.players.find(p => p.id === fId);
+                      if (chosen?.category === 'FEMALE') {
+                        setIsCatchByFemale(true);
+                      }
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-semibold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- Select Fielder who took the catch --</option>
+                    {bowlingTeam?.players.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </label>
+
+                <label className="flex items-start space-x-3 bg-pink-950/30 border border-pink-500/30 p-2.5 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isCatchByFemale}
+                    onChange={(e) => setIsCatchByFemale(e.target.checked)}
+                    className="mt-0.5 rounded border-slate-700 text-pink-600 focus:ring-pink-500"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-pink-300 block">Caught by Female Player?</span>
+                    <span className="text-slate-400 text-[11px]">
+                      {isPowerOver
+                        ? 'Rule: 5 + 2 = 7 runs deducted in Power Over (-7)!'
+                        : 'Rule: 2 + 2 = 4 runs deducted (-2 dismissal + -2 female catch reduction)!'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Run Out Fielders attribution */}
+            {wicketType === 'RUN_OUT' && (
+              <div className="space-y-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                <div>
+                  <label className="text-xs font-bold text-amber-400 uppercase tracking-wider block mb-1.5">
+                    Run Out Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRunOutType('DIRECT')}
+                      className={`p-2 rounded-lg border text-xs font-bold text-center transition ${
+                        runOutType === 'DIRECT'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                          : 'bg-slate-800 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      <span>Direct Hit (+8 pts)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRunOutType('ASSISTED')}
+                      className={`p-2 rounded-lg border text-xs font-bold text-center transition ${
+                        runOutType === 'ASSISTED'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                          : 'bg-slate-800 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      <span>Assisted (+4 pts each)</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                    {runOutType === 'DIRECT' ? 'Fielder (Direct Hit +8 pts)' : 'Primary Fielder (Thrower +4 pts)'}
+                  </label>
+                  <select
+                    value={fielderId}
+                    onChange={(e) => setFielderId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white font-semibold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- Select Fielder --</option>
+                    {bowlingTeam?.players.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {runOutType === 'ASSISTED' && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                      Secondary Fielder (At Stumps / Keeper / Bowler +4 pts)
+                    </label>
+                    <select
+                      value={assistedFielderId}
+                      onChange={(e) => setAssistedFielderId(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white font-semibold focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">-- Select Secondary Fielder --</option>
+                      {bowlingTeam?.players.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.category})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Stumped Attribution */}
+            {wicketType === 'STUMPED' && (
+              <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                <label className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
+                  Wicketkeeper / Fielder who Stumped (+5 Fielding Pts)
+                </label>
+                <select
+                  value={fielderId}
+                  onChange={(e) => setFielderId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-semibold focus:outline-none focus:border-amber-500"
+                >
+                  <option value="">-- Select Keeper / Fielder --</option>
+                  {bowlingTeam?.players.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Bowled / Hit Wicket note */}
+            {(wicketType === 'BOWLED' || wicketType === 'HIT_WICKET') && (
+              <div className="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-xl text-xs text-emerald-300">
+                ⚡ Credit awarded to bowler <b>{bowler?.name}</b> (+10 Bowling Points).
+              </div>
             )}
 
             <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
@@ -1601,7 +1747,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
               {/* If Wicket */}
               {editOutcomeType === 'WICKET' && (
-                <div className="space-y-2 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+                <div className="space-y-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
                   <div>
                     <label className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
                       Dismissal Type
@@ -1620,23 +1766,117 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   </div>
 
                   {editDismissalType === 'CAUGHT' && (
-                    <label className="flex items-center space-x-2 text-xs text-pink-300 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={editIsCatchByFemale}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-amber-400 block">
+                        Caught By Fielder (+5 Fielding Pts)
+                      </label>
+                      <select
+                        value={editFielderId}
                         onChange={(e) => {
-                          setEditIsCatchByFemale(e.target.checked);
-                          if (editOutcomeType === 'WICKET') {
-                            const deduction = editIsPowerOver
-                              ? (e.target.checked ? -7 : -5)
-                              : (e.target.checked ? -4 : -2);
+                          const fId = e.target.value;
+                          setEditFielderId(fId);
+                          const chosen = teams.flatMap(t => t.players).find(p => p.id === fId);
+                          if (chosen?.category === 'FEMALE') {
+                            setEditIsCatchByFemale(true);
+                            const deduction = editIsPowerOver ? -7 : -4;
                             setEditEffectiveRuns(deduction);
                           }
                         }}
-                        className="rounded border-slate-700 text-pink-600 focus:ring-pink-500"
-                      />
-                      <span className="font-bold">Caught by Female Player (-4 standard / -7 power over)</span>
-                    </label>
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="">-- Select Fielder --</option>
+                        {teams.flatMap(t => t.players).map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.category})
+                          </option>
+                        ))}
+                      </select>
+
+                      <label className="flex items-center space-x-2 text-xs text-pink-300 cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={editIsCatchByFemale}
+                          onChange={(e) => {
+                            setEditIsCatchByFemale(e.target.checked);
+                            if (editOutcomeType === 'WICKET') {
+                              const deduction = editIsPowerOver
+                                ? (e.target.checked ? -7 : -5)
+                                : (e.target.checked ? -4 : -2);
+                              setEditEffectiveRuns(deduction);
+                            }
+                          }}
+                          className="rounded border-slate-700 text-pink-600 focus:ring-pink-500"
+                        />
+                        <span className="font-bold">Caught by Female Player (-4 standard / -7 power over)</span>
+                      </label>
+                    </div>
+                  )}
+
+                  {editDismissalType === 'RUN_OUT' && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditRunOutType('DIRECT')}
+                          className={`p-1.5 rounded text-xs font-bold ${
+                            editRunOutType === 'DIRECT' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          Direct Hit (+8 pts)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditRunOutType('ASSISTED')}
+                          className={`p-1.5 rounded text-xs font-bold ${
+                            editRunOutType === 'ASSISTED' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          Assisted (+4 pts each)
+                        </button>
+                      </div>
+
+                      <select
+                        value={editFielderId}
+                        onChange={(e) => setEditFielderId(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="">-- {editRunOutType === 'DIRECT' ? 'Select Direct Fielder (+8)' : 'Primary Fielder (+4)'} --</option>
+                        {teams.flatMap(t => t.players).map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                        ))}
+                      </select>
+
+                      {editRunOutType === 'ASSISTED' && (
+                        <select
+                          value={editAssistedFielderId}
+                          onChange={(e) => setEditAssistedFielderId(e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                        >
+                          <option value="">-- Secondary Fielder (+4) --</option>
+                          {teams.flatMap(t => t.players).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  {editDismissalType === 'STUMPED' && (
+                    <div>
+                      <label className="text-xs font-bold text-amber-400 block mb-1">
+                        Keeper / Fielder who Stumped (+5)
+                      </label>
+                      <select
+                        value={editFielderId}
+                        onChange={(e) => setEditFielderId(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="">-- Select Keeper / Fielder --</option>
+                        {teams.flatMap(t => t.players).map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
               )}

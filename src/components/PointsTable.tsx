@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Match, Team } from '@/types/cricket';
-import { calculateLeagueStandings } from '@/lib/statsService';
+import { calculateLeagueStandings, calculateTournamentPerformancePoints } from '@/lib/statsService';
 import {
   Trophy,
   ArrowRight,
@@ -32,6 +32,7 @@ export const PointsTable: React.FC<PointsTableProps> = ({
   setActiveTab,
 }) => {
   const standings = calculateLeagueStandings(teams, matches);
+  const { awards } = calculateTournamentPerformancePoints(teams, matches, { leagueOnly: true });
 
   const leagueMatches = matches.filter(m => m.stage === 'LEAGUE');
   const completedLeagueMatches = leagueMatches.filter(m => m.status === 'COMPLETED');
@@ -198,6 +199,68 @@ export const PointsTable: React.FC<PointsTableProps> = ({
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Tournament Best Player Awards Showcase (4 Categories) */}
+      <div className="bg-gradient-to-r from-slate-900 via-amber-950/20 to-slate-900 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div>
+            <div className="flex items-center space-x-1.5">
+              <Medal className="w-4 h-4 text-amber-400" />
+              <h3 className="font-black text-sm sm:text-base text-white">
+                Tournament Best Player Leaders (4 Categories)
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Official scoring rules: Run=1, 4s=+2, 6s=+3, Dismissal=-5, Wicket=10, Dot=2, Extras=-2, Runs conceded=-0.5, Catch=5, Run-Out=8/4, Stump=5
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('stats')}
+            className="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center space-x-1 self-start sm:self-auto hover:underline"
+          >
+            <span>Full Player Leaderboard</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase text-amber-400">Best Male</span>
+            <h4 className="text-sm font-black text-white truncate mt-0.5">{awards.bestMale?.name || 'TBD'}</h4>
+            <div className="flex justify-between items-baseline mt-1">
+              <span className="text-[11px] text-slate-400">{awards.bestMale?.teamName}</span>
+              <span className="text-sm font-black text-amber-400">{awards.bestMale?.totalPoints || 0} pts</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-950/80 border border-pink-500/30 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase text-pink-400">Best Female</span>
+            <h4 className="text-sm font-black text-white truncate mt-0.5">{awards.bestFemale?.name || 'TBD'}</h4>
+            <div className="flex justify-between items-baseline mt-1">
+              <span className="text-[11px] text-slate-400">{awards.bestFemale?.teamName}</span>
+              <span className="text-sm font-black text-pink-400">{awards.bestFemale?.totalPoints || 0} pts</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-950/80 border border-cyan-500/30 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase text-cyan-400">Best Kid</span>
+            <h4 className="text-sm font-black text-white truncate mt-0.5">{awards.bestKid?.name || 'TBD'}</h4>
+            <div className="flex justify-between items-baseline mt-1">
+              <span className="text-[11px] text-slate-400">{awards.bestKid?.teamName}</span>
+              <span className="text-sm font-black text-cyan-400">{awards.bestKid?.totalPoints || 0} pts</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-950/80 border border-purple-500/30 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase text-purple-400">Best Senior</span>
+            <h4 className="text-sm font-black text-white truncate mt-0.5">{awards.bestSenior?.name || 'TBD'}</h4>
+            <div className="flex justify-between items-baseline mt-1">
+              <span className="text-[11px] text-slate-400">{awards.bestSenior?.teamName}</span>
+              <span className="text-sm font-black text-purple-400">{awards.bestSenior?.totalPoints || 0} pts</span>
+            </div>
+          </div>
         </div>
       </div>
 
