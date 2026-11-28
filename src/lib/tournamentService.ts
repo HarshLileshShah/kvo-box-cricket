@@ -279,10 +279,13 @@ export function recordBall(params: {
   runOutType?: 'DIRECT' | 'ASSISTED';
   extraBatRunsOnNoBall?: number;
   noBallType?: 'NORMAL' | 'LEG_UPLIFT';
+  byeRuns?: number;
   newStrikerId?: string;
   newNonStrikerId?: string;
   newBowlerId?: string;
   powerOverDeclaredNumber?: number;
+  powerOverOptedOut?: boolean;
+  isSuperAdmin?: boolean;
 }) {
   const state = getTournamentState();
   const matchIndex = state.matches.findIndex(m => m.id === params.matchId);
@@ -301,8 +304,26 @@ export function recordBall(params: {
   const inn = match.innings[match.currentInningsIndex];
   if (inn.isCompleted) throw new Error('Innings is already completed');
 
-  if (params.powerOverDeclaredNumber) {
-    inn.powerOverDeclaredNumber = params.powerOverDeclaredNumber;
+  // Track start timestamps
+  const nowIso = new Date().toISOString();
+  if (inn.balls.length === 0) {
+    if (!inn.startedAt) inn.startedAt = nowIso;
+    if (!match.startedAt) match.startedAt = nowIso;
+    if (match.status === 'UPCOMING') match.status = 'LIVE';
+  }
+
+  // Handle Power Over Declaration
+  if (params.powerOverOptedOut) {
+    inn.powerOverOptedOut = true;
+    inn.powerOverDeclaredNumber = 0;
+  } else if (params.powerOverDeclaredNumber !== undefined) {
+    // If balls already bowled, only Super Admin can change it
+    if (inn.balls.length > 0 && !params.isSuperAdmin) {
+      // Keep existing locked power over
+    } else {
+      inn.powerOverDeclaredNumber = params.powerOverDeclaredNumber;
+      if (params.powerOverDeclaredNumber > 0) inn.powerOverOptedOut = false;
+    }
   }
 
   const battingTeam = state.teams.find(t => t.id === inn.battingTeamId);
@@ -324,6 +345,7 @@ export function recordBall(params: {
     extraBatRunsOnNoBall: params.extraBatRunsOnNoBall,
     isCatchByFemale: params.isCatchByFemale,
     noBallType: params.noBallType,
+    byeRuns: params.byeRuns,
   });
 
   const ballNumber = calc.isLegalDelivery ? inn.currentOverBalls + 1 : inn.currentOverBalls;
@@ -468,10 +490,12 @@ export function recordBall(params: {
 
       if (inn.completedOvers >= match.totalOvers) {
         inn.isCompleted = true;
+        inn.completedAt = nowIso;
         if (match.currentInningsIndex === 0) {
           match.currentInningsIndex = 1;
         } else {
           match.status = 'COMPLETED';
+          match.completedAt = nowIso;
           const firstInnRuns = match.innings[0].totalRuns;
           const secondInnRuns = match.innings[1].totalRuns;
           if (secondInnRuns > firstInnRuns) {
@@ -495,7 +519,9 @@ export function recordBall(params: {
     const target = match.innings[0].totalRuns + 1;
     if (inn.totalRuns >= target) {
       inn.isCompleted = true;
+      inn.completedAt = nowIso;
       match.status = 'COMPLETED';
+      match.completedAt = nowIso;
       match.winnerId = inn.battingTeamId;
     }
   }
@@ -592,6 +618,8 @@ export function updateActiveParticipants(params: {
   nonStrikerId?: string;
   bowlerId?: string;
   powerOverDeclaredNumber?: number;
+  powerOverOptedOut?: boolean;
+  isSuperAdmin?: boolean;
 }) {
   const state = getTournamentState();
   const match = state.matches.find(m => m.id === params.matchId);
@@ -601,7 +629,20 @@ export function updateActiveParticipants(params: {
   if (params.strikerId) inn.currentPair.strikerId = params.strikerId;
   if (params.nonStrikerId) inn.currentPair.nonStrikerId = params.nonStrikerId;
   if (params.bowlerId) inn.currentBowlerId = params.bowlerId;
-  if (params.powerOverDeclaredNumber) inn.powerOverDeclaredNumber = params.powerOverDeclaredNumber;
+
+  if (params.powerOverOptedOut) {
+    if (inn.balls.length > 0 && !params.isSuperAdmin) {
+      throw new Error('Power Over status is locked after first ball is bowled. Only Super Admin can change it.');
+    }
+    inn.powerOverOptedOut = true;
+    inn.powerOverDeclaredNumber = 0;
+  } else if (params.powerOverDeclaredNumber !== undefined) {
+    if (inn.balls.length > 0 && !params.isSuperAdmin) {
+      throw new Error('Power Over status is locked after first ball is bowled. Only Super Admin can change it.');
+    }
+    inn.powerOverDeclaredNumber = params.powerOverDeclaredNumber;
+    if (params.powerOverDeclaredNumber > 0) inn.powerOverOptedOut = false;
+  }
 
   saveTournamentState(state);
   return match;

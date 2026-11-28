@@ -23,9 +23,10 @@ import {
 interface PlayerStatsProps {
   teams: Team[];
   matches: Match[];
+  isSuperAdmin?: boolean;
 }
 
-export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
+export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches, isSuperAdmin = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [leagueOnly, setLeagueOnly] = useState<boolean>(true);
@@ -138,21 +139,41 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-800/80">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                <span className="text-3xl font-black text-amber-400">{awards.bestMale?.totalPoints || 0}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bat: <span className="text-emerald-400">{awards.bestMale?.battingPoints || 0}</span>
+              {isSuperAdmin ? (
+                <>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                    <span className="text-3xl font-black text-amber-400">{awards.bestMale?.totalPoints || 0}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bat: <span className="text-emerald-400">{awards.bestMale?.battingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bowl: <span className="text-purple-400">{awards.bestMale?.bowlingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Field: <span className="text-blue-400">{awards.bestMale?.fieldingPoints || 0}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
+                      <span className="text-xl font-black text-emerald-400">{awards.bestMale?.actualRunsScored || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
+                      <span className="text-xl font-black text-purple-400">{awards.bestMale?.wicketsCount || 0}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-amber-400/80 text-center font-medium">
+                    🔒 Official Points: Super Admin Only
+                  </div>
                 </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bowl: <span className="text-purple-400">{awards.bestMale?.bowlingPoints || 0}</span>
-                </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Field: <span className="text-blue-400">{awards.bestMale?.fieldingPoints || 0}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -179,21 +200,41 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-800/80">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                <span className="text-3xl font-black text-pink-400">{awards.bestFemale?.totalPoints || 0}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bat: <span className="text-emerald-400">{awards.bestFemale?.battingPoints || 0}</span>
+              {isSuperAdmin ? (
+                <>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                    <span className="text-3xl font-black text-pink-400">{awards.bestFemale?.totalPoints || 0}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bat: <span className="text-emerald-400">{awards.bestFemale?.battingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bowl: <span className="text-purple-400">{awards.bestFemale?.bowlingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Field: <span className="text-blue-400">{awards.bestFemale?.fieldingPoints || 0}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
+                      <span className="text-xl font-black text-pink-400">{awards.bestFemale?.actualRunsScored || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
+                      <span className="text-xl font-black text-purple-400">{awards.bestFemale?.wicketsCount || 0}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-pink-400/80 text-center font-medium">
+                    🔒 Official Points: Super Admin Only
+                  </div>
                 </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bowl: <span className="text-purple-400">{awards.bestFemale?.bowlingPoints || 0}</span>
-                </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Field: <span className="text-blue-400">{awards.bestFemale?.fieldingPoints || 0}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -220,21 +261,41 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-800/80">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                <span className="text-3xl font-black text-cyan-400">{awards.bestKid?.totalPoints || 0}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bat: <span className="text-emerald-400">{awards.bestKid?.battingPoints || 0}</span>
+              {isSuperAdmin ? (
+                <>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                    <span className="text-3xl font-black text-cyan-400">{awards.bestKid?.totalPoints || 0}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bat: <span className="text-emerald-400">{awards.bestKid?.battingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bowl: <span className="text-purple-400">{awards.bestKid?.bowlingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Field: <span className="text-blue-400">{awards.bestKid?.fieldingPoints || 0}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
+                      <span className="text-xl font-black text-cyan-400">{awards.bestKid?.actualRunsScored || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
+                      <span className="text-xl font-black text-purple-400">{awards.bestKid?.wicketsCount || 0}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-cyan-400/80 text-center font-medium">
+                    🔒 Official Points: Super Admin Only
+                  </div>
                 </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bowl: <span className="text-purple-400">{awards.bestKid?.bowlingPoints || 0}</span>
-                </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Field: <span className="text-blue-400">{awards.bestKid?.fieldingPoints || 0}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -261,21 +322,41 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-800/80">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                <span className="text-3xl font-black text-purple-400">{awards.bestSenior?.totalPoints || 0}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bat: <span className="text-emerald-400">{awards.bestSenior?.battingPoints || 0}</span>
+              {isSuperAdmin ? (
+                <>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                    <span className="text-3xl font-black text-purple-400">{awards.bestSenior?.totalPoints || 0}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bat: <span className="text-emerald-400">{awards.bestSenior?.battingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Bowl: <span className="text-purple-400">{awards.bestSenior?.bowlingPoints || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                      Field: <span className="text-blue-400">{awards.bestSenior?.fieldingPoints || 0}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
+                      <span className="text-xl font-black text-purple-400">{awards.bestSenior?.actualRunsScored || 0}</span>
+                    </div>
+                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
+                      <span className="text-xl font-black text-amber-400">{awards.bestSenior?.wicketsCount || 0}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-purple-400/80 text-center font-medium">
+                    🔒 Official Points: Super Admin Only
+                  </div>
                 </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Bowl: <span className="text-purple-400">{awards.bestSenior?.bowlingPoints || 0}</span>
-                </div>
-                <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                  Field: <span className="text-blue-400">{awards.bestSenior?.fieldingPoints || 0}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -387,37 +468,61 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
         </div>
       </div>
 
-      {/* Full Performance Points Leaderboard Table */}
+      {/* Full Performance Leaderboard Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <div className="text-xs font-bold text-white flex items-center space-x-2">
             <span>Overall Performance Leaderboard ({filteredPoints.length} players)</span>
           </div>
           <span className="text-[10px] text-slate-500">
-            Click on any row to view full points breakdown
+            {isSuperAdmin ? 'Click on any row to view full points breakdown' : 'Official match statistics'}
           </span>
         </div>
+
+        {!isSuperAdmin && (
+          <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-[11px] font-semibold flex items-center space-x-2">
+            <span>🔒 Official Award Performance Points are confidential & visible to Super Admin only. Displaying player runs, wickets, and match statistics.</span>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left min-w-[850px]">
             <thead className="bg-slate-950 text-slate-400 uppercase font-bold tracking-wider text-[11px]">
-              <tr>
-                <th className="p-3 text-center w-12">Rank</th>
-                <th className="p-3">Player</th>
-                <th className="p-3">Team</th>
-                <th className="p-3">Category</th>
-                <th className="p-3 text-right">M</th>
-                <th className="p-3 text-right">Bat Pts</th>
-                <th className="p-3 text-right">Bowl Pts</th>
-                <th className="p-3 text-right">Field Pts</th>
-                <th className="p-3 text-right bg-amber-500/10 text-amber-300">TOTAL PTS</th>
-                <th className="p-3 text-center">POTM</th>
-              </tr>
+              {isSuperAdmin ? (
+                <tr>
+                  <th className="p-3 text-center w-12">Rank</th>
+                  <th className="p-3">Player</th>
+                  <th className="p-3">Team</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3 text-right">M</th>
+                  <th className="p-3 text-right">Bat Pts</th>
+                  <th className="p-3 text-right">Bowl Pts</th>
+                  <th className="p-3 text-right">Field Pts</th>
+                  <th className="p-3 text-right bg-amber-500/10 text-amber-300">TOTAL PTS</th>
+                  <th className="p-3 text-center">POTM</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="p-3 text-center w-12">Rank</th>
+                  <th className="p-3">Player</th>
+                  <th className="p-3">Team</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3 text-right">M</th>
+                  <th className="p-3 text-right text-emerald-400">Runs</th>
+                  <th className="p-3 text-right">4s</th>
+                  <th className="p-3 text-right">6s</th>
+                  <th className="p-3 text-right text-purple-400">Wkts</th>
+                  <th className="p-3 text-right">Dots</th>
+                  <th className="p-3 text-right">Catches</th>
+                  <th className="p-3 text-right">RO</th>
+                  <th className="p-3 text-center">POTM</th>
+                </tr>
+              )}
             </thead>
             <tbody className="divide-y divide-slate-800/80 text-slate-200">
               {filteredPoints.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-500 text-xs">
+                  <td colSpan={isSuperAdmin ? 10 : 13} className="p-8 text-center text-slate-500 text-xs">
                     No players found matching your criteria.
                   </td>
                 </tr>
@@ -425,8 +530,8 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
                 filteredPoints.map((p, idx) => (
                   <tr
                     key={p.playerId}
-                    onClick={() => setSelectedPlayerModal(p)}
-                    className="hover:bg-slate-800/60 transition cursor-pointer"
+                    onClick={() => isSuperAdmin && setSelectedPlayerModal(p)}
+                    className={`transition ${isSuperAdmin ? 'hover:bg-slate-800/60 cursor-pointer' : 'hover:bg-slate-800/30'}`}
                   >
                     <td className="p-3 text-center font-mono font-bold text-slate-400">
                       {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
@@ -455,18 +560,38 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches }) => {
                     </td>
                     <td className="p-3">{getCategoryBadge(p.category)}</td>
                     <td className="p-3 text-right text-slate-400">{p.matchesPlayed}</td>
-                    <td className="p-3 text-right font-mono font-bold text-emerald-400">
-                      {p.battingPoints > 0 ? `+${p.battingPoints}` : p.battingPoints}
-                    </td>
-                    <td className="p-3 text-right font-mono font-bold text-purple-400">
-                      {p.bowlingPoints > 0 ? `+${p.bowlingPoints}` : p.bowlingPoints}
-                    </td>
-                    <td className="p-3 text-right font-mono font-bold text-blue-400">
-                      {p.fieldingPoints > 0 ? `+${p.fieldingPoints}` : p.fieldingPoints}
-                    </td>
-                    <td className="p-3 text-right font-black font-mono text-amber-400 text-base bg-amber-500/10">
-                      {p.totalPoints}
-                    </td>
+
+                    {isSuperAdmin ? (
+                      <>
+                        <td className="p-3 text-right font-mono font-bold text-emerald-400">
+                          {p.battingPoints > 0 ? `+${p.battingPoints}` : p.battingPoints}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-purple-400">
+                          {p.bowlingPoints > 0 ? `+${p.bowlingPoints}` : p.bowlingPoints}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-blue-400">
+                          {p.fieldingPoints > 0 ? `+${p.fieldingPoints}` : p.fieldingPoints}
+                        </td>
+                        <td className="p-3 text-right font-black font-mono text-amber-400 text-base bg-amber-500/10">
+                          {p.totalPoints}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="p-3 text-right font-mono font-bold text-emerald-400 text-sm">
+                          {p.actualRunsScored}
+                        </td>
+                        <td className="p-3 text-right text-slate-300">{p.foursCount}</td>
+                        <td className="p-3 text-right text-slate-300">{p.sixesCount}</td>
+                        <td className="p-3 text-right font-mono font-bold text-purple-400 text-sm">
+                          {p.wicketsCount}
+                        </td>
+                        <td className="p-3 text-right text-slate-400">{p.dotBallsCount}</td>
+                        <td className="p-3 text-right text-blue-300">{p.catchesCount}</td>
+                        <td className="p-3 text-right text-amber-300">{p.directRunOutsCount + p.assistedRunOutsCount}</td>
+                      </>
+                    )}
+
                     <td className="p-3 text-center">
                       {p.potmCount > 0 ? (
                         <span className="font-bold text-amber-400 text-xs">{p.potmCount}</span>

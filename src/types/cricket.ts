@@ -122,6 +122,9 @@ export interface Innings {
   currentOverBalls: number;
   balls: BallRecord[];
   powerOverDeclaredNumber?: number;
+  powerOverOptedOut?: boolean;
+  startedAt?: string;
+  completedAt?: string;
   currentPair: {
     strikerId: string;
     nonStrikerId: string;
@@ -155,6 +158,8 @@ export interface Match {
   teamAPlaying8Ids?: string[];
   teamBPlaying8Ids?: string[];
   lineupSubmitted?: boolean;
+  startedAt?: string;
+  completedAt?: string;
   group?: string; // Optional legacy
 }
 

@@ -105,6 +105,7 @@ export default function Home() {
   }, [showPlaying8Modal, showLoginModal]);
 
   const activeMatch = matches.find(m => m.id === selectedMatchId) || matches[0];
+  const isSuperAdmin = isAdmin && (adminUser?.role === 'ADMIN' || adminUser?.loginId?.toLowerCase() === 'admin');
 
   // Protected Admin Actions
   const requireAdmin = (actionFn: () => Promise<void>) => {
@@ -120,10 +121,11 @@ export default function Home() {
       setShowLoginModal(true);
       throw new Error('Please sign in as Admin/Scorer to update scores.');
     }
+    const payload = { ...params, isSuperAdmin };
     const res = await fetch('/api/tournament', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'RECORD_BALL', params }),
+      body: JSON.stringify({ action: 'RECORD_BALL', params: payload }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -154,10 +156,11 @@ export default function Home() {
       setShowLoginModal(true);
       throw new Error('Please sign in as Admin/Scorer to rotate participants.');
     }
+    const payload = { ...params, isSuperAdmin };
     const res = await fetch('/api/tournament', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'UPDATE_PARTICIPANTS', params }),
+      body: JSON.stringify({ action: 'UPDATE_PARTICIPANTS', params: payload }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -512,7 +515,7 @@ export default function Home() {
 
         {/* Player Leaderboard Stats */}
         {activeTab === 'stats' && (
-          <PlayerStats teams={teams} matches={matches} />
+          <PlayerStats teams={teams} matches={matches} isSuperAdmin={isSuperAdmin} />
         )}
 
         {/* Official Rulebook */}

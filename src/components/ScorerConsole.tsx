@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Match, 
   Team, 
@@ -12,6 +12,7 @@ import {
   UserRole
 } from '@/types/cricket';
 import { checkRuleCompliance } from '@/lib/rulesEngine';
+import { formatDuration } from '@/lib/timerUtils';
 import { 
   Zap, 
   RotateCcw, 
@@ -31,7 +32,8 @@ import {
   Trash2,
   Lock,
   X,
-  ShieldAlert
+  ShieldAlert,
+  Clock
 } from 'lucide-react';
 
 interface ScorerConsoleProps {
@@ -97,6 +99,31 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const [selectedNewStrikerId, setSelectedNewStrikerId] = useState('');
   const [selectedNewNonStrikerId, setSelectedNewNonStrikerId] = useState('');
   const [selectedNewBowlerId, setSelectedNewBowlerId] = useState('');
+
+  // Live Timer ticker state
+  const [, setTimerTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTimerTick(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Bye Modal state (multiple runs)
+  const [showByeModal, setShowByeModal] = useState(false);
+  const [byeRuns, setByeRuns] = useState<number>(1);
+
+  // Power Over Pre-Match Mandate Modal state
+  const [showPowerOverModal, setShowPowerOverModal] = useState(false);
+  const [selectedPowerOverNum, setSelectedPowerOverNum] = useState<number>(4);
+
+  // Mandatory Over Up Bowler Change Modal state
+  const [showOverUpBowlerModal, setShowOverUpBowlerModal] = useState(false);
+  const [overUpBowlerId, setOverUpBowlerId] = useState('');
+
+  // Mandatory Pair Change Modal (End of 2 overs)
+  const [showMandatoryPairModal, setShowMandatoryPairModal] = useState(false);
+  const [mandatoryPairStrikerId, setMandatoryPairStrikerId] = useState('');
+  const [mandatoryPairNonStrikerId, setMandatoryPairNonStrikerId] = useState('');
+  const [mandatoryPairBowlerId, setMandatoryPairBowlerId] = useState('');
 
   const currentInnings = match.innings[match.currentInningsIndex];
   const teamA = teams.find(t => t.id === match.teamAId);
@@ -174,6 +201,65 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
   const strikerCategory = striker?.category || 'REGULAR';
 
+  // Bowler past overs tracking (Rule 10: 1 over per bowler max)
+  const bowledBowlerIds = new Set<string>();
+  const bowlerOversMap: Record<string, number[]> = {};
+  for (const b of currentInnings.balls) {
+    if (b.overNumber < currentOverNumber && b.bowlerId) {
+      bowledBowlerIds.add(b.bowlerId);
+      if (!bowlerOversMap[b.bowlerId]) bowlerOversMap[b.bowlerId] = [];
+      if (!bowlerOversMap[b.bowlerId].includes(b.overNumber)) {
+        bowlerOversMap[b.bowlerId].push(b.overNumber);
+      }
+    }
+  }
+
+  // Previous over info (Rule 7)
+  const prevOverNumber = currentOverNumber - 1;
+  const prevOverBalls = currentInnings.balls.filter(b => b.overNumber === prevOverNumber);
+  const prevBowlerId = prevOverBalls.length > 0 ? prevOverBalls[prevOverBalls.length - 1].bowlerId : null;
+  const prevBowler = bowlingTeam?.players.find(p => p.id === prevBowlerId);
+
+  // Current over balls & statistics (Rule 7)
+  const currentOverBallsList = currentInnings.balls.filter(b => b.overNumber === currentOverNumber);
+  const currentOverRuns = currentOverBallsList.reduce((sum, b) => sum + b.effectiveRuns, 0);
+  const currentOverWickets = currentOverBallsList.filter(b => !!b.dismissal).length;
+
+  const prevOverRuns = prevOverBalls.reduce((sum, b) => sum + b.effectiveRuns, 0);
+  const prevOverWickets = prevOverBalls.filter(b => !!b.dismissal).length;
+
+  // Over boundary checks (Rule 3)
+  const isOverBoundary = currentInnings.completedOvers > 0 && currentInnings.currentOverBalls === 0;
+
+  // Check if current bowler needs to change (must not be same as previous bowler, and must not have bowled before)
+  const bowlerHasAlreadyBowled = !!currentInnings.currentBowlerId && bowledBowlerIds.has(currentInnings.currentBowlerId);
+  const bowlerIsSameAsPrev = !!currentInnings.currentBowlerId && currentInnings.currentBowlerId === prevBowlerId;
+  const needsBowlerChange = isOverBoundary && (!currentInnings.currentBowlerId || bowlerHasAlreadyBowled || bowlerIsSameAsPrev);
+
+  // Batting pairs 2-over cycle check (Rule 4: Overs 1-2 = Pair 1, 3-4 = Pair 2, 5-6 = Pair 3, 7-8 = Pair 4)
+  // When completedOvers is 2, 4, or 6 and currentOverBalls === 0, pair change is mandatory!
+  const isPairBoundary = (currentInnings.completedOvers === 2 || currentInnings.completedOvers === 4 || currentInnings.completedOvers === 6) && currentInnings.currentOverBalls === 0;
+  
+  // Find batters who batted in the preceding 2 overs
+  const prev2Overs = [currentInnings.completedOvers - 1, currentInnings.completedOvers];
+  const prev2OversBalls = currentInnings.balls.filter(b => prev2Overs.includes(b.overNumber));
+  const prevPairBatterIds = new Set<string>();
+  for (const b of prev2OversBalls) {
+    if (b.batsmanId) prevPairBatterIds.add(b.batsmanId);
+    if (b.nonStrikerId) prevPairBatterIds.add(b.nonStrikerId);
+  }
+  const needsPairChange = isPairBoundary && (
+    prevPairBatterIds.has(currentInnings.currentPair.strikerId) ||
+    prevPairBatterIds.has(currentInnings.currentPair.nonStrikerId)
+  );
+
+  // Check Power Over declaration before ball 1 (Rule 1)
+  const needsPowerOverDeclaration = currentInnings.balls.length === 0 && !currentInnings.powerOverDeclaredNumber && !currentInnings.powerOverOptedOut;
+
+  // Female mandate in Overs 1 & 2 (Rule 5)
+  const isOver1Or2 = currentOverNumber <= 2;
+  const currentPairHasFemale = striker?.category === 'FEMALE' || nonStriker?.category === 'FEMALE';
+
   // Helper to preview runs for buttons based on striker category & power over
   const getOutcomePreview = (outcome: BallOutcomeType): { label: string; runsNote: string } => {
     if (outcome === 'RUN_1') {
@@ -216,6 +302,45 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const handleBallClick = async (outcomeType: BallOutcomeType) => {
     if (isSubmitting || currentInnings.isCompleted) return;
 
+    // Rule 1: Mandate Power Over declaration before ball 1 of the innings
+    if (needsPowerOverDeclaration) {
+      setShowPowerOverModal(true);
+      return;
+    }
+
+    // Rule 4: Mandate Batsman Change after 2 overs (Overs 2, 4, 6 completed)
+    if (needsPairChange) {
+      setMandatoryPairStrikerId('');
+      setMandatoryPairNonStrikerId('');
+      setMandatoryPairBowlerId('');
+      setShowMandatoryPairModal(true);
+      return;
+    }
+
+    // Rule 3: Mandate Bowler Change at over boundary
+    if (needsBowlerChange) {
+      setOverUpBowlerId('');
+      setShowOverUpBowlerModal(true);
+      return;
+    }
+
+    // Rule 5: Mandate Female batter in Overs 1 & 2
+    if (isOver1Or2 && !currentPairHasFemale) {
+      alert("⚠️ Mandatory Female Rule: Overs 1 & 2 must include a Female batter in the batting pair. Please change the pair before scoring.");
+      setSelectedNewStrikerId(striker?.id || '');
+      setSelectedNewNonStrikerId(nonStriker?.id || '');
+      setSelectedNewBowlerId(bowler?.id || '');
+      setShowChangePairModal(true);
+      return;
+    }
+
+    // Rule 2: Bye modal with multiple runs option
+    if (outcomeType === 'BYE') {
+      setByeRuns(1);
+      setShowByeModal(true);
+      return;
+    }
+
     if (outcomeType === 'WICKET') {
       setShowWicketModal(true);
       return;
@@ -236,6 +361,91 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
       });
     } catch (err: any) {
       alert(`Error recording ball: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitBye = async () => {
+    try {
+      setIsSubmitting(true);
+      await onRecordBall({
+        matchId: match.id,
+        outcomeType: 'BYE',
+        byeRuns,
+      });
+      setShowByeModal(false);
+      setByeRuns(1);
+    } catch (err: any) {
+      alert(`Error recording bye: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitPowerOverDeclaration = async (overNumber?: number, optOut?: boolean) => {
+    try {
+      setIsSubmitting(true);
+      await onUpdateParticipants({
+        matchId: match.id,
+        powerOverDeclaredNumber: optOut ? undefined : (overNumber || selectedPowerOverNum),
+        powerOverOptedOut: !!optOut,
+      });
+      setShowPowerOverModal(false);
+    } catch (err: any) {
+      alert(`Error setting power over: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitMandatoryBowler = async () => {
+    if (!overUpBowlerId) {
+      alert('Please select a bowler to continue.');
+      return;
+    }
+    if (bowledBowlerIds.has(overUpBowlerId)) {
+      alert('Rule Violation: This player has already bowled an over in this innings. Each bowler is limited to 1 over maximum.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await onUpdateParticipants({
+        matchId: match.id,
+        bowlerId: overUpBowlerId,
+      });
+      setShowOverUpBowlerModal(false);
+    } catch (err: any) {
+      alert(`Error setting bowler: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitMandatoryPair = async () => {
+    if (!mandatoryPairStrikerId || !mandatoryPairNonStrikerId) {
+      alert('Please select both Striker and Non-Striker.');
+      return;
+    }
+    if (mandatoryPairStrikerId === mandatoryPairNonStrikerId) {
+      alert('Striker and Non-Striker cannot be the same player.');
+      return;
+    }
+    if (mandatoryPairBowlerId && bowledBowlerIds.has(mandatoryPairBowlerId)) {
+      alert('Rule Violation: Selected bowler has already bowled an over in this innings. Each player can only bowl 1 over.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await onUpdateParticipants({
+        matchId: match.id,
+        strikerId: mandatoryPairStrikerId,
+        nonStrikerId: mandatoryPairNonStrikerId,
+        bowlerId: mandatoryPairBowlerId || undefined,
+      });
+      setShowMandatoryPairModal(false);
+    } catch (err: any) {
+      alert(`Error updating pair: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -405,13 +615,39 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   };
 
   const handleSaveParticipants = async () => {
+    const sId = selectedNewStrikerId || striker?.id;
+    const nsId = selectedNewNonStrikerId || nonStriker?.id;
+    const bId = selectedNewBowlerId || bowler?.id;
+
+    if (sId && nsId && sId === nsId) {
+      alert('Striker and Non-Striker cannot be the same player.');
+      return;
+    }
+
+    // Rule 5: Check female mandate in Overs 1 & 2
+    if (currentOverNumber <= 2) {
+      const sPlayer = battingTeam?.players.find(p => p.id === sId);
+      const nsPlayer = battingTeam?.players.find(p => p.id === nsId);
+      const hasFemale = sPlayer?.category === 'FEMALE' || nsPlayer?.category === 'FEMALE';
+      if (!hasFemale) {
+        alert('⚠️ Rule Violation: Overs 1 & 2 must include a Female batter in the batting pair. Scorers cannot change batting pair to all-male.');
+        return;
+      }
+    }
+
+    // Rule 10: Check bowler limit (1 over per bowler max)
+    if (bId && bId !== bowler?.id && bowledBowlerIds.has(bId)) {
+      alert('⚠️ Rule Violation: This player has already bowled an over in this innings. Each player is limited to 1 over maximum.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       await onUpdateParticipants({
         matchId: match.id,
-        strikerId: selectedNewStrikerId || striker?.id,
-        nonStrikerId: selectedNewNonStrikerId || nonStriker?.id,
-        bowlerId: selectedNewBowlerId || bowler?.id,
+        strikerId: sId,
+        nonStrikerId: nsId,
+        bowlerId: bId,
       });
       setShowChangePairModal(false);
     } catch (err: any) {
@@ -515,6 +751,43 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 📍 {match.boxVenue || 'Box Arena'} • {match.stage === 'LEAGUE' ? 'League Match' : match.stage.replace('_', ' ')} • Innings {match.currentInningsIndex + 1}/2
               </div>
             </div>
+          </div>
+
+          {/* Live Timer Strip (Rule 6: Match and Innings Duration) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/70 border border-slate-800/80 px-3 py-1.5 rounded-xl text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center space-x-1.5 text-slate-300">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-slate-400 font-semibold uppercase text-[10px]">Match Duration:</span>
+                <span className="font-mono font-bold text-amber-300">
+                  {formatDuration(match.startedAt, match.completedAt)}
+                </span>
+              </div>
+              <div className="h-3 w-[1px] bg-slate-800 hidden sm:block" />
+              <div className="flex items-center space-x-1.5 text-slate-300">
+                <span className="text-slate-400 font-semibold uppercase text-[10px]">Innings 1:</span>
+                <span className="font-mono font-bold text-white">
+                  {formatDuration(match.innings[0]?.startedAt, match.innings[0]?.completedAt)}
+                </span>
+              </div>
+              {match.innings[1]?.startedAt && (
+                <>
+                  <div className="h-3 w-[1px] bg-slate-800 hidden sm:block" />
+                  <div className="flex items-center space-x-1.5 text-slate-300">
+                    <span className="text-slate-400 font-semibold uppercase text-[10px]">Innings 2:</span>
+                    <span className="font-mono font-bold text-white">
+                      {formatDuration(match.innings[1]?.startedAt, match.innings[1]?.completedAt)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+            {match.status === 'LIVE' && (
+              <span className="flex items-center space-x-1 text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded font-bold border border-rose-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                <span>LIVE TIMER</span>
+              </span>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
@@ -740,21 +1013,66 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
           )}
         </div>
 
-        {/* Power Over Selector */}
+        {/* Power Over Controls (Rule 1: Pre-match mandate & locking after ball 1) */}
         <div className="flex items-center space-x-2 text-xs">
-          <label htmlFor="power-over-select" className="text-slate-400 font-medium">Power Over:</label>
-          <select
-            id="power-over-select"
-            value={currentInnings.powerOverDeclaredNumber || 4}
-            onChange={(e) => handleSetPowerOver(Number(e.target.value))}
-            className="bg-purple-950/60 border border-purple-700/60 text-purple-200 rounded-lg px-2 py-1 font-bold focus:outline-none"
-          >
-            {[3, 4, 5, 6, 7, 8].map(ov => (
-              <option key={ov} value={ov} className="bg-slate-900 text-white">
-                Over {ov} {isSemiOrFinal && ov === 5 ? '(Solo Senior)' : ''}
-              </option>
-            ))}
-          </select>
+          {currentInnings.balls.length > 0 ? (
+            isSuperAdmin ? (
+              <div className="flex items-center space-x-1.5 bg-purple-950/80 border border-purple-500/70 rounded-xl px-2.5 py-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-[11px] font-bold text-amber-300">Admin Override:</span>
+                <select
+                  value={currentInnings.powerOverOptedOut ? 'OPT_OUT' : (currentInnings.powerOverDeclaredNumber || 4)}
+                  onChange={(e) => {
+                    if (e.target.value === 'OPT_OUT') {
+                      submitPowerOverDeclaration(undefined, true);
+                    } else {
+                      submitPowerOverDeclaration(Number(e.target.value), false);
+                    }
+                  }}
+                  className="bg-slate-900 border border-purple-700 text-purple-200 rounded-lg px-2 py-0.5 font-bold focus:outline-none text-xs"
+                >
+                  <option value="OPT_OUT">No Power Over (Opt Out)</option>
+                  {[3, 4, 5, 6, 7, 8].map(ov => (
+                    <option key={ov} value={ov}>
+                      Over {ov} {isSemiOrFinal && ov === 5 ? '(Solo Senior)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-purple-950/50 border border-purple-800/60 text-purple-300 text-xs font-semibold shadow-inner">
+                <Lock className="w-3.5 h-3.5 text-purple-400" />
+                <span>
+                  Power Over:{' '}
+                  <strong className="text-white">
+                    {currentInnings.powerOverOptedOut 
+                      ? 'None (Opted Out)' 
+                      : currentInnings.powerOverDeclaredNumber 
+                      ? `Over ${currentInnings.powerOverDeclaredNumber}` 
+                      : 'None'}
+                  </strong>
+                </span>
+                <span className="text-[10px] bg-purple-900/80 text-purple-200 px-1.5 py-0.5 rounded font-black border border-purple-700/50">
+                  LOCKED
+                </span>
+              </div>
+            )
+          ) : (
+            <button
+              onClick={() => setShowPowerOverModal(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow-md shadow-purple-600/30 transition active:scale-95 animate-pulse"
+              title="Declare Power Over before 1st ball is bowled"
+            >
+              <Zap className="w-3.5 h-3.5 fill-white" />
+              <span>
+                {currentInnings.powerOverOptedOut
+                  ? '⚡ Power Over: Opted Out'
+                  : currentInnings.powerOverDeclaredNumber
+                  ? `⚡ Power Over: Over ${currentInnings.powerOverDeclaredNumber}`
+                  : '⚡ Declare Power Over (Mandatory)'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -925,11 +1243,14 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
         </div>
       </div>
 
-      {/* Recent Deliveries Timeline */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      {/* Over & Previous Over Separate Breakup (Rule 7) */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Balls</span>
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center space-x-1.5">
+              <History className="w-4 h-4 text-amber-400" />
+              <span>Over Deliveries Breakdown</span>
+            </span>
             <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
               💡 Tap any ball to edit
             </span>
@@ -949,52 +1270,131 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
             <span className="text-xs text-slate-500">{currentInnings.balls.length} deliveries</span>
           </div>
         </div>
-        <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
-          {recentBalls.length === 0 ? (
-            <span className="text-xs text-slate-500 italic">No balls bowled yet in this innings.</span>
-          ) : (
-            recentBalls.map((b) => {
-              const isLockedForScorer = isScorer && !isCurrentActiveOver(b.overNumber, match.currentInningsIndex);
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => handleOpenEditBall(b, match.currentInningsIndex)}
-                  className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all relative ${
-                    isLockedForScorer
-                      ? 'cursor-pointer hover:scale-105 opacity-80 ring-1 ring-slate-600/50'
-                      : 'cursor-pointer hover:scale-110 active:scale-95'
-                  } ${
-                    b.dismissal
-                      ? 'bg-rose-600 border-rose-400 text-white ring-1 ring-rose-400/50'
-                      : b.outcomeType === 'SIX'
-                      ? 'bg-amber-500 border-amber-300 text-slate-950 font-black ring-1 ring-amber-300/50'
-                      : b.outcomeType === 'FOUR'
-                      ? 'bg-blue-600 border-blue-400 text-white font-black ring-1 ring-blue-400/50'
-                      : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
-                      ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
-                      : b.outcomeType === 'DECLARATION_1D'
-                      ? 'bg-purple-800 border-purple-500 text-purple-200'
-                      : b.effectiveRuns === 0
-                      ? 'bg-slate-800 border-slate-700 text-slate-400'
-                      : 'bg-emerald-800 border-emerald-600 text-emerald-100 ring-1 ring-emerald-400/30'
-                  }`}
-                  title={
-                    isLockedForScorer
-                      ? `🔒 Ball ${b.overNumber}.${b.ballNumber} (Past Over): Locked for Scorers. Super Admin only.`
-                      : `Click to edit ball ${b.overNumber}.${b.ballNumber}: ${b.commentary} (${b.batsmanName})`
-                  }
-                >
-                  <span className="relative">
-                    {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
-                    {isLockedForScorer && (
-                      <span className="absolute -top-2.5 -right-2 text-[8px] bg-slate-900/90 rounded-full px-0.5">🔒</span>
-                    )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Current Over Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                  Current Over (Over {currentOverNumber})
+                </span>
+                {isPowerOver && (
+                  <span className="text-[9px] bg-purple-500/20 text-purple-300 font-bold px-1.5 py-0.5 rounded border border-purple-500/30">
+                    ⚡ Power Over
                   </span>
-                </button>
-              );
-            })
-          )}
+                )}
+              </div>
+              <span className="text-xs text-slate-300">
+                Bowler: <b className="text-white">{bowler?.name || 'Unassigned'}</b>
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Progress: <b>{currentInnings.currentOverBalls}/6 balls</b></span>
+              <span className="font-semibold text-emerald-400">
+                Score: +{currentOverRuns} runs • {currentOverWickets} wkts
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2 overflow-x-auto pb-1 visual-scrollbar min-h-10">
+              {currentOverBallsList.length === 0 ? (
+                <span className="text-xs text-slate-500 italic py-1">No balls bowled yet in Over {currentOverNumber}.</span>
+              ) : (
+                currentOverBallsList.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => handleOpenEditBall(b, match.currentInningsIndex)}
+                    className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all cursor-pointer hover:scale-110 active:scale-95 ${
+                      b.dismissal
+                        ? 'bg-rose-600 border-rose-400 text-white ring-1 ring-rose-400/50'
+                        : b.outcomeType === 'SIX'
+                        ? 'bg-amber-500 border-amber-300 text-slate-950 font-black ring-1 ring-amber-300/50'
+                        : b.outcomeType === 'FOUR'
+                        ? 'bg-blue-600 border-blue-400 text-white font-black ring-1 ring-blue-400/50'
+                        : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
+                        ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
+                        : b.outcomeType === 'DECLARATION_1D'
+                        ? 'bg-purple-800 border-purple-500 text-purple-200'
+                        : b.effectiveRuns === 0
+                        ? 'bg-slate-800 border-slate-700 text-slate-400'
+                        : 'bg-emerald-800 border-emerald-600 text-emerald-100 ring-1 ring-emerald-400/30'
+                    }`}
+                    title={`Click to edit ball ${b.overNumber}.${b.ballNumber}: ${b.commentary} (${b.batsmanName})`}
+                  >
+                    <span>
+                      {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Previous Over Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-black text-slate-300 uppercase tracking-wider">
+                Previous Over {prevOverNumber > 0 ? `(Over ${prevOverNumber})` : ''}
+              </span>
+              {prevOverNumber > 0 && (
+                <span className="text-xs text-slate-300">
+                  Bowler: <b className="text-white">{prevBowler?.name || 'Previous Bowler'}</b>
+                </span>
+              )}
+            </div>
+
+            {prevOverNumber > 0 ? (
+              <>
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Completed: <b>6/6 balls</b></span>
+                  <span className="font-semibold text-slate-300">
+                    Finished: +{prevOverRuns} runs • {prevOverWickets} wkts
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 overflow-x-auto pb-1 visual-scrollbar min-h-10">
+                  {prevOverBalls.map((b) => {
+                    const isLocked = isScorer && !isCurrentActiveOver(b.overNumber, match.currentInningsIndex);
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => handleOpenEditBall(b, match.currentInningsIndex)}
+                        className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all relative ${
+                          isLocked ? 'cursor-pointer hover:scale-105 opacity-85' : 'cursor-pointer hover:scale-110 active:scale-95'
+                        } ${
+                          b.dismissal
+                            ? 'bg-rose-600 border-rose-400 text-white'
+                            : b.outcomeType === 'SIX'
+                            ? 'bg-amber-500 border-amber-300 text-slate-950 font-black'
+                            : b.outcomeType === 'FOUR'
+                            ? 'bg-blue-600 border-blue-400 text-white font-black'
+                            : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
+                            ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
+                            : b.outcomeType === 'DECLARATION_1D'
+                            ? 'bg-purple-800 border-purple-500 text-purple-200'
+                            : b.effectiveRuns === 0
+                            ? 'bg-slate-800 border-slate-700 text-slate-400'
+                            : 'bg-emerald-800 border-emerald-600 text-emerald-100'
+                        }`}
+                        title={isLocked ? `🔒 Ball ${b.overNumber}.${b.ballNumber}: Past Over (Super Admin to edit)` : `Click to edit ball ${b.overNumber}.${b.ballNumber}`}
+                      >
+                        <span className="relative">
+                          {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
+                          {isLocked && <span className="absolute -top-2.5 -right-2 text-[8px]">🔒</span>}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="py-5 text-center text-xs text-slate-500 italic">
+                Innings has just begun — previous over breakdown will appear once Over 1 is completed.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1263,9 +1663,16 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
             <div className="text-xs text-slate-300 bg-slate-800/80 p-2.5 rounded-lg border border-slate-700 space-y-1">
               <p>• <strong>Pair Batting Rule:</strong> Each pair bats for 2 overs.</p>
-              <p>• <strong>Overs 1 & 2:</strong> Female pair & female bowler mandatory.</p>
-              <p>• <strong>Bowling Rule:</strong> Everyone must bowl one over. No consecutive overs.</p>
+              <p>• <strong>Overs 1 & 2:</strong> Female pair & female bowler mandatory (cannot be changed away from female).</p>
+              <p>• <strong>Bowling Rule:</strong> Each player can only bowl 1 over max (no consecutive or duplicate overs).</p>
             </div>
+
+            {currentOverNumber <= 2 && (
+              <div className="bg-pink-950/40 border border-pink-500/40 p-2.5 rounded-xl text-xs text-pink-300 font-semibold flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-pink-400 shrink-0" />
+                <span>Mandatory Female Rule (Overs 1 & 2): Either Striker or Non-Striker MUST be a Female player.</span>
+              </div>
+            )}
 
             <div className="space-y-3">
               <div>
@@ -1316,9 +1723,12 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 >
                   {eligibleBowlers.map(p => {
                     const bStat = currentInnings.bowlerStats[p.id];
+                    const hasBowled = bowledBowlerIds.has(p.id);
+                    const isPrev = isOverBoundary && p.id === prevBowlerId;
+                    const isDisabled = hasBowled || isPrev;
                     return (
-                      <option key={p.id} value={p.id}>
-                        {p.name} [{p.category}] - {bStat ? `${bStat.oversBowled} ov bowled` : '0 ov'}
+                      <option key={p.id} value={p.id} disabled={isDisabled}>
+                        {p.name} [{p.category}] - {hasBowled ? `(Already Bowled Over ${bowlerOversMap[p.id]?.join(',') || ''} - 1 Over Limit)` : isPrev ? '(Just Bowled Previous Over)' : bStat ? `${bStat.oversBowled} ov bowled` : '0 ov'}
                       </option>
                     );
                   })}
@@ -1944,6 +2354,342 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   Save & Recalculate
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BYE MODAL (Rule 2: Option to add multiple runs) */}
+      {showByeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-black text-white flex items-center space-x-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <span>Record Bye Runs</span>
+              </h3>
+              <button onClick={() => setShowByeModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-300">
+              Select the number of bye runs taken by the batting pair on this delivery:
+            </div>
+
+            <div className="grid grid-cols-4 gap-2.5">
+              {[1, 2, 3, 4].map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setByeRuns(r)}
+                  className={`py-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
+                    byeRuns === r
+                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black ring-2 ring-amber-500/30'
+                      : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 font-bold'
+                  }`}
+                >
+                  <span className="text-lg font-black">{r}</span>
+                  <span className="text-[10px] uppercase opacity-80 font-bold">
+                    {r === 1 ? 'Single' : r === 4 ? 'Boundary' : 'Runs'}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowByeModal(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitBye}
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20"
+              >
+                Confirm Bye (+{byeRuns} runs)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POWER OVER DECLARATION MODAL (Rule 1: Pre-match mandate before ball 1) */}
+      {showPowerOverModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-purple-500/70 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/40 flex items-center justify-center">
+                  <Zap className="w-5 h-5 fill-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Power Over Declaration</h3>
+                  <span className="text-[11px] text-purple-300 font-semibold block">Mandatory Before Ball 1</span>
+                </div>
+              </div>
+              <button onClick={() => setShowPowerOverModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-purple-950/40 border border-purple-500/30 rounded-xl p-3 text-xs text-purple-200 space-y-1.5">
+              <p className="font-bold text-white flex items-center space-x-1.5">
+                <AlertCircle className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>Official Tournament Rule:</span>
+              </p>
+              <p>
+                Each batting team must declare their chosen Power Over before the innings first ball is bowled.
+              </p>
+              <p className="text-amber-300 font-semibold">
+                🔒 Once the 1st ball is bowled, this selection will be LOCKED for Scorers (only Super Admin can modify).
+              </p>
+              <p className="text-slate-300">
+                If not declared now, the innings will proceed with <strong>NO Power Over</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                Select Power Over (Batting Team: {battingTeam?.name})
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[3, 4, 5, 6, 7, 8].map((ov) => (
+                  <button
+                    key={ov}
+                    type="button"
+                    onClick={() => setSelectedPowerOverNum(ov)}
+                    className={`py-3 px-2 rounded-xl border text-center transition ${
+                      selectedPowerOverNum === ov
+                        ? 'bg-purple-600 border-purple-400 text-white font-black shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/50'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 font-bold'
+                    }`}
+                  >
+                    <span className="block text-sm">Over {ov}</span>
+                    {isSemiOrFinal && ov === 5 && (
+                      <span className="text-[9px] text-amber-300 block">Solo Senior</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => submitPowerOverDeclaration(selectedPowerOverNum, false)}
+                disabled={isSubmitting}
+                className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-sm shadow-lg shadow-purple-600/30 transition active:scale-95 flex items-center justify-center space-x-2"
+              >
+                <Zap className="w-4 h-4 fill-white" />
+                <span>Confirm Power Over as Over {selectedPowerOverNum}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => submitPowerOverDeclaration(undefined, true)}
+                disabled={isSubmitting}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-xs border border-slate-700 transition"
+              >
+                Opt Out / No Power Over for this Innings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANDATORY OVER UP BOWLER MODAL (Rule 3 & Rule 10: Bowler change mandatory, 1 over per bowler limit) */}
+      {showOverUpBowlerModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-emerald-500/70 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Over {currentOverNumber} Begins</h3>
+                  <span className="text-[11px] text-emerald-400 font-semibold block">Mandatory Bowler Change</span>
+                </div>
+              </div>
+              <button onClick={() => setShowOverUpBowlerModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 space-y-1">
+              <p className="font-bold text-white">Official Over Up & Bowling Regulations:</p>
+              <p>• <strong>Mandatory Change:</strong> Over {prevOverNumber} has completed. A new bowler must be chosen.</p>
+              <p>• <strong>1 Over Max Rule:</strong> In an 8-over match, every player bowls exactly 1 over. Bowlers who have already bowled cannot bowl again.</p>
+              {prevBowler && (
+                <p className="text-slate-400 text-[11px] pt-1">
+                  Previous Bowler: <b>{prevBowler.name}</b> (completed Over {prevOverNumber})
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="overup-bowler-select" className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1.5">
+                Select Bowler for Over {currentOverNumber} ({bowlingTeam?.name})
+              </label>
+              <select
+                id="overup-bowler-select"
+                value={overUpBowlerId}
+                onChange={(e) => setOverUpBowlerId(e.target.value)}
+                className="w-full bg-slate-800 border-2 border-emerald-500/60 rounded-xl p-3 text-sm text-white font-bold focus:outline-none focus:border-emerald-400"
+              >
+                <option value="">-- Choose New Bowler --</option>
+                {eligibleBowlers.map(p => {
+                  const bStat = currentInnings.bowlerStats[p.id];
+                  const hasBowled = bowledBowlerIds.has(p.id);
+                  const isPrev = p.id === prevBowlerId;
+                  const isDisabled = hasBowled || isPrev;
+                  return (
+                    <option key={p.id} value={p.id} disabled={isDisabled}>
+                      {p.name} [{p.category}] - {hasBowled ? `(Already Bowled Over ${bowlerOversMap[p.id]?.join(',') || ''} - Max 1 Over)` : isPrev ? '(Just Bowled Over ' + prevOverNumber + ')' : bStat ? `${bStat.oversBowled} ov bowled` : '0 ov'}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="pt-2 flex justify-end space-x-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowOverUpBowlerModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitMandatoryBowler}
+                disabled={isSubmitting || !overUpBowlerId}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 transition active:scale-95 disabled:opacity-40"
+              >
+                Confirm Bowler for Over {currentOverNumber}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANDATORY PAIR CHANGE MODAL (Rule 4: Batsman change mandatory after 2 overs) */}
+      {showMandatoryPairModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-amber-500/70 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Over {currentOverNumber} Begins (2 Overs Complete)</h3>
+                  <span className="text-[11px] text-amber-400 font-semibold block">Mandatory Batsman Change (New Pair)</span>
+                </div>
+              </div>
+              <button onClick={() => setShowMandatoryPairModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-amber-950/40 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-200 space-y-1">
+              <p className="font-bold text-white">Pair Batting Regulations:</p>
+              <p>• <strong>2-Over Cycle Finished:</strong> The previous pair has completed their 2 overs. A new batting pair is mandatory.</p>
+              <p>• <strong>Bowler Change:</strong> A new bowler must also be selected for Over {currentOverNumber} (1 over limit per bowler).</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="mand-striker-select" className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  New Striker ({battingTeam?.name})
+                </label>
+                <select
+                  id="mand-striker-select"
+                  value={mandatoryPairStrikerId}
+                  onChange={(e) => setMandatoryPairStrikerId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm text-white font-semibold focus:outline-none focus:border-amber-400"
+                >
+                  <option value="">-- Choose New Striker --</option>
+                  {eligibleBatters.map(p => {
+                    const wasInPrevPair = prevPairBatterIds.has(p.id);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} [{p.category}] {wasInPrevPair ? '(Just Batted in Previous Pair)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="mand-nonstriker-select" className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  New Non-Striker ({battingTeam?.name})
+                </label>
+                <select
+                  id="mand-nonstriker-select"
+                  value={mandatoryPairNonStrikerId}
+                  onChange={(e) => setMandatoryPairNonStrikerId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm text-white font-semibold focus:outline-none focus:border-amber-400"
+                >
+                  <option value="">-- Choose New Non-Striker --</option>
+                  {eligibleBatters.map(p => {
+                    const wasInPrevPair = prevPairBatterIds.has(p.id);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} [{p.category}] {wasInPrevPair ? '(Just Batted in Previous Pair)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="mand-bowler-select" className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                  New Bowler ({bowlingTeam?.name})
+                </label>
+                <select
+                  id="mand-bowler-select"
+                  value={mandatoryPairBowlerId}
+                  onChange={(e) => setMandatoryPairBowlerId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-sm text-white font-semibold focus:outline-none focus:border-emerald-400"
+                >
+                  <option value="">-- Choose Bowler for Over {currentOverNumber} --</option>
+                  {eligibleBowlers.map(p => {
+                    const bStat = currentInnings.bowlerStats[p.id];
+                    const hasBowled = bowledBowlerIds.has(p.id);
+                    const isPrev = p.id === prevBowlerId;
+                    const isDisabled = hasBowled || isPrev;
+                    return (
+                      <option key={p.id} value={p.id} disabled={isDisabled}>
+                        {p.name} [{p.category}] - {hasBowled ? `(Already Bowled Over ${bowlerOversMap[p.id]?.join(',') || ''} - 1 Over Limit)` : isPrev ? '(Just Bowled Previous Over)' : bStat ? `${bStat.oversBowled} ov bowled` : '0 ov'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end space-x-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowMandatoryPairModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitMandatoryPair}
+                disabled={isSubmitting || !mandatoryPairStrikerId || !mandatoryPairNonStrikerId}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition active:scale-95 disabled:opacity-40"
+              >
+                Confirm Pair & Bowler for Over {currentOverNumber}
+              </button>
             </div>
           </div>
         </div>

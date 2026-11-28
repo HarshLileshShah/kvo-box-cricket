@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Match, Team, PlayerCategory, BallRecord, BallOutcomeType, DismissalType, UserRole } from '@/types/cricket';
 import { calculateSingleMatchPoints } from '@/lib/statsService';
+import { formatDuration } from '@/lib/timerUtils';
 import {
   Tv,
   Flame,
@@ -77,6 +78,22 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
       }
       return false;
     };
+
+    // Live Duration Timer Ticker
+    const [, setTimerTick] = useState(0);
+    useEffect(() => {
+      if (match.status === 'LIVE') {
+        const interval = setInterval(() => {
+          setTimerTick(t => t + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+      }
+    }, [match.status]);
+
+    const matchDuration = formatDuration(match.startedAt, match.completedAt);
+    const inn1Duration = formatDuration(match.innings[0]?.startedAt, match.innings[0]?.completedAt);
+    const inn2Duration = formatDuration(match.innings[1]?.startedAt, match.innings[1]?.completedAt);
+    const currentInnDuration = formatDuration(match.innings[match.currentInningsIndex]?.startedAt, match.innings[match.currentInningsIndex]?.completedAt);
 
     const handleOpenEditBall = (ball: BallRecord, innIdx: number = selectedInningsFilter) => {
       if (isScorer && !isCurrentActiveOver(ball.overNumber, innIdx)) {
@@ -309,6 +326,28 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Match & Innings Duration Live Timers */}
+          {(match.startedAt || currentInnings.startedAt) && (
+            <div className="mt-2.5 sm:mt-3 flex flex-wrap items-center justify-between gap-2 bg-slate-950/70 border border-slate-800/80 px-3 py-1.5 rounded-xl text-xs">
+              <div className="flex items-center space-x-2 text-amber-300 font-bold font-mono">
+                <Timer className="w-3.5 h-3.5 text-amber-400" />
+                <span>⏱️ Match Duration: {matchDuration}</span>
+              </div>
+              <div className="flex items-center space-x-3 text-slate-400 font-mono text-[11px]">
+                <span>Inn 1: <strong className="text-white">{inn1Duration}</strong></span>
+                {match.innings[1]?.startedAt && (
+                  <>
+                    <span className="text-slate-700">•</span>
+                    <span>Inn 2: <strong className="text-white">{inn2Duration}</strong></span>
+                  </>
+                )}
+                {match.status === 'LIVE' && (
+                  <span className="text-emerald-400 font-bold animate-pulse">● LIVE</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Prominent Matchup: Who is Playing With Whom */}
           <div className="mt-3.5 sm:mt-4 bg-slate-950/80 border border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4">
@@ -588,50 +627,124 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
               </div>
             </div>
 
-            {/* Current Over Balls Timeline */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-slate-400 font-semibold block">This Over Deliveries:</span>
-                {isAdmin && onEditBall && (
-                  <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                    💡 Click ball to edit
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
-                {currentInnings.balls.filter(b => b.overNumber === currentOverNumber).length === 0 ? (
-                  <span className="text-xs text-slate-500 italic">Over starting...</span>
-                ) : (
-                  currentInnings.balls
-                    .filter(b => b.overNumber === currentOverNumber)
-                    .map(b => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => isAdmin && onEditBall && handleOpenEditBall(b)}
-                        className={`min-w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border transition ${
-                          isAdmin && onEditBall ? 'cursor-pointer hover:scale-110 active:scale-95 ring-1 ring-amber-400/40' : 'cursor-default'
-                        } ${b.dismissal
-                            ? 'bg-rose-600 border-rose-400 text-white'
-                            : b.outcomeType === 'SIX'
-                              ? 'bg-amber-500 border-amber-300 text-slate-950'
-                              : b.outcomeType === 'FOUR'
-                                ? 'bg-blue-600 border-blue-400 text-white'
-                                : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
-                                  ? 'bg-amber-900 border-amber-600 text-amber-200'
-                                  : b.outcomeType === 'DECLARATION_1D'
-                                    ? 'bg-purple-800 border-purple-500 text-purple-200'
-                                    : b.effectiveRuns === 0
-                                      ? 'bg-slate-800 border-slate-700 text-slate-400'
-                                      : 'bg-emerald-800 border-emerald-600 text-white'
-                          }`}
-                        title={isAdmin && onEditBall ? `Admin: Click to edit ball ${b.overNumber}.${b.ballNumber}: ${b.commentary}` : b.commentary}
-                      >
-                        {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
-                      </button>
-                    ))
-                )}
-              </div>
+            {/* Over Breakup: Current Over & Previous Over Separately */}
+            <div className="space-y-3 pt-2">
+              {/* 1. CURRENT OVER BREAKUP */}
+              {(() => {
+                const currentOverBalls = currentInnings.balls.filter(b => b.overNumber === currentOverNumber);
+                const currentOverRuns = currentOverBalls.reduce((s, b) => s + b.effectiveRuns, 0);
+                const currentOverWkts = currentOverBalls.filter(b => b.dismissal).length;
+
+                return (
+                  <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                          Current Over (Over {currentOverNumber}):
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {currentOverBalls.length} balls • {currentOverRuns > 0 ? `+${currentOverRuns}` : currentOverRuns} runs{currentOverWkts > 0 ? ` • ${currentOverWkts} wkt` : ''}
+                        </span>
+                      </div>
+                      {isAdmin && onEditBall && (
+                        <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                          💡 Click ball to edit
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2 overflow-x-auto pb-1 visual-scrollbar">
+                      {currentOverBalls.length === 0 ? (
+                        <span className="text-xs text-slate-500 italic">Over starting... Waiting for first delivery</span>
+                      ) : (
+                        currentOverBalls.map(b => (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => isAdmin && onEditBall && handleOpenEditBall(b)}
+                            className={`min-w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border transition ${
+                              isAdmin && onEditBall ? 'cursor-pointer hover:scale-110 active:scale-95 ring-1 ring-amber-400/40' : 'cursor-default'
+                            } ${b.dismissal
+                                ? 'bg-rose-600 border-rose-400 text-white'
+                                : b.outcomeType === 'SIX'
+                                  ? 'bg-amber-500 border-amber-300 text-slate-950'
+                                  : b.outcomeType === 'FOUR'
+                                    ? 'bg-blue-600 border-blue-400 text-white'
+                                    : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
+                                      ? 'bg-amber-900 border-amber-600 text-amber-200'
+                                      : b.outcomeType === 'DECLARATION_1D'
+                                        ? 'bg-purple-800 border-purple-500 text-purple-200'
+                                        : b.effectiveRuns === 0
+                                          ? 'bg-slate-800 border-slate-700 text-slate-400'
+                                          : 'bg-emerald-800 border-emerald-600 text-white'
+                              }`}
+                            title={isAdmin && onEditBall ? `Admin: Click to edit ball ${b.overNumber}.${b.ballNumber}: ${b.commentary}` : b.commentary}
+                          >
+                            {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 2. PREVIOUS OVER BREAKUP */}
+              {(() => {
+                const prevOverNumber = currentOverNumber - 1;
+                const prevOverBalls = prevOverNumber > 0 ? currentInnings.balls.filter(b => b.overNumber === prevOverNumber) : [];
+                const prevOverRuns = prevOverBalls.reduce((s, b) => s + b.effectiveRuns, 0);
+                const prevOverWkts = prevOverBalls.filter(b => b.dismissal).length;
+                const prevOverBowler = prevOverBalls[0]?.bowlerName || '';
+
+                return (
+                  <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/70">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          Previous Over {prevOverNumber > 0 ? `(Over ${prevOverNumber})` : ''}:
+                        </span>
+                        {prevOverNumber > 0 ? (
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            Bowled by <strong>{prevOverBowler || 'Bowler'}</strong> • {prevOverBalls.length} balls • {prevOverRuns > 0 ? `+${prevOverRuns}` : prevOverRuns} runs{prevOverWkts > 0 ? ` • ${prevOverWkts} wkt` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-500 italic">None (First over of innings)</span>
+                        )}
+                      </div>
+                    </div>
+                    {prevOverNumber > 0 && (
+                      <div className="flex items-center space-x-2 overflow-x-auto pb-1 visual-scrollbar">
+                        {prevOverBalls.map(b => (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => isAdmin && onEditBall && handleOpenEditBall(b)}
+                            className={`min-w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black border transition ${
+                              isAdmin && onEditBall ? 'cursor-pointer hover:scale-110 active:scale-95' : 'cursor-default'
+                            } ${b.dismissal
+                                ? 'bg-rose-600/80 border-rose-400 text-white'
+                                : b.outcomeType === 'SIX'
+                                  ? 'bg-amber-500/80 border-amber-300 text-slate-950'
+                                  : b.outcomeType === 'FOUR'
+                                    ? 'bg-blue-600/80 border-blue-400 text-white'
+                                    : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
+                                      ? 'bg-amber-900/80 border-amber-600 text-amber-200'
+                                      : b.outcomeType === 'DECLARATION_1D'
+                                        ? 'bg-purple-800/80 border-purple-500 text-purple-200'
+                                        : b.effectiveRuns === 0
+                                          ? 'bg-slate-800 border-slate-700 text-slate-400'
+                                          : 'bg-emerald-800/80 border-emerald-600 text-white'
+                              }`}
+                            title={b.commentary}
+                          >
+                            {b.dismissal ? 'W' : b.outcomeType === 'WIDE' ? 'WD' : b.outcomeType === 'NO_BALL' ? 'NB' : b.outcomeType === 'DECLARATION_1D' ? '1D' : b.effectiveRuns}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

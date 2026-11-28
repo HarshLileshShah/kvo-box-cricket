@@ -104,7 +104,7 @@ export const PointsTable: React.FC<PointsTableProps> = ({
             <span>Tournament Points Table</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Single league table. Each team plays a maximum of 3 matches. <strong>Top 4 teams advance to the Semifinals.</strong>
+            Single league table. <strong>Win = 2 Pts • Tie / Draw = 1 Pt • Loss = 0 Pts.</strong> Top 4 teams advance to the Semifinals (NRR determines tiebreaks).
           </p>
         </div>
 

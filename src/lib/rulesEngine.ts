@@ -7,6 +7,7 @@ export interface CalculateBallRunsParams {
   extraBatRunsOnNoBall?: number; // runs run between wickets or hit on NB
   isCatchByFemale?: boolean;
   noBallType?: 'NORMAL' | 'LEG_UPLIFT';
+  byeRuns?: number; // runs run or conceded on byes (1, 2, 3, 4, etc.)
 }
 
 export interface CalculatedBallResult {
@@ -116,17 +117,19 @@ export function calculateBallOutcome(params: CalculateBallRunsParams): Calculate
 
   // 4. EXTRAS: BYE
   // Byes will not be doubled in Power Over
+  // Multiple runs can be taken as byes (1, 2, 3, 4)
   if (outcomeType === 'BYE') {
+    const runs = params.byeRuns && params.byeRuns > 0 ? params.byeRuns : 1;
     return {
-      effectiveTeamRuns: 1,
+      effectiveTeamRuns: runs,
       batsmanRuns: 0,
-      rawRuns: 1,
+      rawRuns: runs,
       isLegalDelivery: true,
       isWicket: false,
       isBoundary: false,
       isFour: false,
       isSix: false,
-      commentary: 'Bye: 1 run taken.',
+      commentary: `Bye: ${runs} run(s) taken.`,
     };
   }
 
