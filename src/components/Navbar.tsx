@@ -13,7 +13,8 @@ import {
   Flame,
   Lock,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
 import { Match, Team, UserRole } from '@/types/cricket';
 
@@ -57,6 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
     { id: 'standings', label: 'Points Table & Semis', icon: TableProperties },
     { id: 'schedule', label: 'Fixtures', icon: CalendarDays },
+    { id: 'event-schedule', label: 'Event Schedule', icon: Clock },
     { id: 'teams', label: 'Teams & Rosters', icon: Users },
     { id: 'stats', label: 'Player Stats', icon: Award },
     { id: 'rules', label: 'PDF Rulebook', icon: BookOpen },

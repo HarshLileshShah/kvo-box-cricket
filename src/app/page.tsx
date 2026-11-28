@@ -9,6 +9,7 @@ import { ScheduleManager } from '@/components/ScheduleManager';
 import { TeamManager } from '@/components/TeamManager';
 import { PlayerStats } from '@/components/PlayerStats';
 import { RuleBookViewer } from '@/components/RuleBookViewer';
+import { EventScheduleViewer } from '@/components/EventScheduleViewer';
 import { AdminLoginModal } from '@/components/AdminLoginModal';
 import { Playing8Modal } from '@/components/Playing8Modal';
 import { ResetConfirmModal } from '@/components/ResetConfirmModal';
@@ -506,6 +507,11 @@ export default function Home() {
             onResetMatch={promptResetMatch}
             onSyncOfficialSchedule={handleSyncOfficialSchedule}
           />
+        )}
+
+        {/* Whole Event Master Schedule */}
+        {activeTab === 'event-schedule' && (
+          <EventScheduleViewer />
         )}
 
         {/* Teams & Rosters */}
