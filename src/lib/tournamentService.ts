@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Match, Team, MatchStatus, Innings, TournamentRulesConfig, BallOutcomeType, DismissalType, PlayerCategory } from '@/types/cricket';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES, createInitialInnings } from './mockData';
-import { calculateBallOutcome } from './rulesEngine';
+import { calculateBallOutcome, getCompletedBatters } from './rulesEngine';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STATE_FILE = path.join(DATA_DIR, 'tournament_state.json');
@@ -700,6 +700,15 @@ export function updateActiveParticipants(params: {
       inn.currentBowlerId = seniorBowler.id;
     }
   } else {
+    // 1-Cycle Batting Rule: completed batters cannot bat again in this innings
+    const { completedBatterIds, batterBlockMap } = getCompletedBatters(inn, isSemiOrFinal);
+    if (params.strikerId && params.strikerId !== inn.currentPair.strikerId && completedBatterIds.has(params.strikerId)) {
+      throw new Error(`Cannot select batsman: Player has already completed their batting cycle in ${batterBlockMap[params.strikerId] || 'earlier overs'}. Each batsman can only bat once.`);
+    }
+    if (params.nonStrikerId && params.nonStrikerId !== inn.currentPair.nonStrikerId && completedBatterIds.has(params.nonStrikerId)) {
+      throw new Error(`Cannot select non-striker: Player has already completed their batting cycle in ${batterBlockMap[params.nonStrikerId] || 'earlier overs'}. Each batsman can only bat once.`);
+    }
+
     if (params.strikerId) inn.currentPair.strikerId = params.strikerId;
     if (params.nonStrikerId) inn.currentPair.nonStrikerId = params.nonStrikerId;
     if (params.bowlerId) inn.currentBowlerId = params.bowlerId;

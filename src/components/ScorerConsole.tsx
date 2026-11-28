@@ -1,28 +1,28 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Match, 
-  Team, 
-  Player, 
+import {
+  Match,
+  Team,
+  Player,
   BallRecord,
-  BallOutcomeType, 
-  DismissalType, 
+  BallOutcomeType,
+  DismissalType,
   PlayerCategory,
   UserRole
 } from '@/types/cricket';
-import { checkRuleCompliance } from '@/lib/rulesEngine';
+import { checkRuleCompliance, getCompletedBatters } from '@/lib/rulesEngine';
 import { formatDuration } from '@/lib/timerUtils';
-import { 
-  Zap, 
-  RotateCcw, 
-  ArrowLeftRight, 
-  AlertTriangle, 
-  ShieldCheck, 
-  UserCheck, 
-  Sparkles, 
-  Flame, 
-  Undo2, 
+import {
+  Zap,
+  RotateCcw,
+  ArrowLeftRight,
+  AlertTriangle,
+  ShieldCheck,
+  UserCheck,
+  Sparkles,
+  Flame,
+  Undo2,
   Info,
   CheckCircle2,
   AlertCircle,
@@ -72,7 +72,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const [fielderId, setFielderId] = useState('');
   const [assistedFielderId, setAssistedFielderId] = useState('');
   const [runOutType, setRunOutType] = useState<'DIRECT' | 'ASSISTED'>('DIRECT');
-  
+
   // No-Ball Modal State (Leg Uplift vs Normal)
   const [showNoBallModal, setShowNoBallModal] = useState(false);
   const [noBallType, setNoBallType] = useState<'NORMAL' | 'LEG_UPLIFT'>('NORMAL');
@@ -95,7 +95,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const [editBowlerId, setEditBowlerId] = useState('');
   const [editIsPowerOver, setEditIsPowerOver] = useState(false);
   const [editCommentary, setEditCommentary] = useState('');
-  
+
   const [showChangePairModal, setShowChangePairModal] = useState(false);
   const [selectedNewStrikerId, setSelectedNewStrikerId] = useState('');
   const [selectedNewNonStrikerId, setSelectedNewNonStrikerId] = useState('');
@@ -191,8 +191,8 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
   const juniorPlayer = battingTeam?.players.find(p => p.category === 'KID');
   const juniorStats = juniorPlayer ? currentInnings.batsmanStats[juniorPlayer.id] : null;
-  const juniorHasBatted = (juniorStats?.ballsFaced || 0) > 0 || 
-    currentInnings.currentPair.strikerId === juniorPlayer?.id || 
+  const juniorHasBatted = (juniorStats?.ballsFaced || 0) > 0 ||
+    currentInnings.currentPair.strikerId === juniorPlayer?.id ||
     currentInnings.currentPair.nonStrikerId === juniorPlayer?.id;
 
   const compliance = checkRuleCompliance({
@@ -216,7 +216,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
           strikerId: seniorBatter.id,
           nonStrikerId: seniorBatter.id,
           bowlerId: seniorBowler.id,
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   }, [isOver5SemiFinal, currentInnings.currentBowlerId, currentInnings.currentPair.strikerId, seniorBatter?.id, seniorBowler?.id, currentInnings.isCompleted, match.id]);
@@ -248,6 +248,11 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const prevOverRuns = prevOverBalls.reduce((sum, b) => sum + b.effectiveRuns, 0);
   const prevOverWickets = prevOverBalls.filter(b => !!b.dismissal).length;
 
+  // Completed Batters tracking:
+  // Once a batsman has completed his 2-over batting cycle (or Over 5 solo in semis),
+  // he CANNOT be selected to bat again in this innings!
+  const { completedBatterIds, batterBlockMap } = getCompletedBatters(currentInnings, isSemiOrFinal);
+
   // Over boundary checks (Rule 3)
   const isOverBoundary = currentInnings.completedOvers > 0 && currentInnings.currentOverBalls === 0;
 
@@ -264,7 +269,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const isPairBoundary = isSemiOrFinal
     ? ((currentInnings.completedOvers === 2 || currentInnings.completedOvers === 5 || currentInnings.completedOvers === 7) && currentInnings.currentOverBalls === 0)
     : ((currentInnings.completedOvers === 2 || currentInnings.completedOvers === 4 || currentInnings.completedOvers === 6) && currentInnings.currentOverBalls === 0);
-  
+
   // Find batters who batted in preceding overs
   const prevOversToCheck = (isSemiOrFinal && currentInnings.completedOvers === 5)
     ? [3, 4, 5]
@@ -276,6 +281,8 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
     if (b.nonStrikerId) prevPairBatterIds.add(b.nonStrikerId);
   }
   const needsPairChange = isPairBoundary && !isOver5SemiFinal && (
+    completedBatterIds.has(currentInnings.currentPair.strikerId) ||
+    completedBatterIds.has(currentInnings.currentPair.nonStrikerId) ||
     prevPairBatterIds.has(currentInnings.currentPair.strikerId) ||
     prevPairBatterIds.has(currentInnings.currentPair.nonStrikerId)
   );
@@ -468,6 +475,17 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
     }
     if (mandatoryPairStrikerId === mandatoryPairNonStrikerId) {
       alert('Striker and Non-Striker cannot be the same player.');
+      return;
+    }
+    // Completed Batters validation: once a batsman has completed his cycle, he cannot bat again!
+    if (completedBatterIds.has(mandatoryPairStrikerId)) {
+      const p = battingTeam?.players.find(x => x.id === mandatoryPairStrikerId);
+      alert(`⚠️ Rule Violation: ${p?.name || 'Selected striker'} has already completed their batting in ${batterBlockMap[mandatoryPairStrikerId] || 'an earlier cycle'}. Each player can only bat once.`);
+      return;
+    }
+    if (completedBatterIds.has(mandatoryPairNonStrikerId)) {
+      const p = battingTeam?.players.find(x => x.id === mandatoryPairNonStrikerId);
+      alert(`⚠️ Rule Violation: ${p?.name || 'Selected non-striker'} has already completed their batting in ${batterBlockMap[mandatoryPairNonStrikerId] || 'an earlier cycle'}. Each player can only bat once.`);
       return;
     }
     if (mandatoryPairBowlerId && bowledBowlerIds.has(mandatoryPairBowlerId)) {
@@ -678,6 +696,18 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
       }
     }
 
+    // Completed Batters validation: once a batsman has completed his cycle, he cannot bat again!
+    if (sId && sId !== striker?.id && completedBatterIds.has(sId)) {
+      const p = battingTeam?.players.find(x => x.id === sId);
+      alert(`⚠️ Rule Violation: ${p?.name || 'Selected striker'} has already completed their batting in ${batterBlockMap[sId] || 'an earlier cycle'}. Each player can only bat once.`);
+      return;
+    }
+    if (nsId && nsId !== nonStriker?.id && completedBatterIds.has(nsId)) {
+      const p = battingTeam?.players.find(x => x.id === nsId);
+      alert(`⚠️ Rule Violation: ${p?.name || 'Selected non-striker'} has already completed their batting in ${batterBlockMap[nsId] || 'an earlier cycle'}. Each player can only bat once.`);
+      return;
+    }
+
     // Rule 10: Check bowler limit (1 over per bowler max)
     if (bId && bId !== bowler?.id && bowledBowlerIds.has(bId)) {
       alert('⚠️ Rule Violation: This player has already bowled an over in this innings. Each player is limited to 1 over maximum.');
@@ -740,17 +770,15 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4 border-b border-slate-800 pb-3 sm:pb-4">
             <div className="w-full lg:w-auto grid grid-cols-1 sm:grid-cols-[1fr,auto,1fr] items-center gap-2">
               {/* Team A */}
-              <div className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl border min-w-0 ${
-                currentInnings.battingTeamId === teamA?.id 
-                  ? 'bg-slate-800 border-amber-500/60 ring-2 ring-amber-500/20' 
-                  : 'bg-slate-950/80 border-slate-800'
-              }`}>
+              <div className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl border min-w-0 ${currentInnings.battingTeamId === teamA?.id
+                ? 'bg-slate-800 border-amber-500/60 ring-2 ring-amber-500/20'
+                : 'bg-slate-950/80 border-slate-800'
+                }`}>
                 <span className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamA?.color || '#3b82f6' }} />
                 <div className="min-w-0">
                   <span className="text-sm sm:text-lg font-black text-white block leading-tight truncate">{teamA?.name || 'Team A'}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${
-                    currentInnings.battingTeamId === teamA?.id ? 'text-amber-400 font-bold' : 'text-slate-400'
-                  }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${currentInnings.battingTeamId === teamA?.id ? 'text-amber-400 font-bold' : 'text-slate-400'
+                    }`}>
                     {currentInnings.battingTeamId === teamA?.id ? '🏏 Currently Batting' : '⚾ Currently Bowling/Fielding'}
                   </span>
                 </div>
@@ -761,17 +789,15 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
               </div>
 
               {/* Team B */}
-              <div className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl border min-w-0 ${
-                currentInnings.battingTeamId === teamB?.id 
-                  ? 'bg-slate-800 border-amber-500/60 ring-2 ring-amber-500/20' 
-                  : 'bg-slate-950/80 border-slate-800'
-              }`}>
+              <div className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl border min-w-0 ${currentInnings.battingTeamId === teamB?.id
+                ? 'bg-slate-800 border-amber-500/60 ring-2 ring-amber-500/20'
+                : 'bg-slate-950/80 border-slate-800'
+                }`}>
                 <span className="w-3.5 h-3.5 rounded-full ring-2 ring-white/20 shrink-0" style={{ backgroundColor: teamB?.color || '#ef4444' }} />
                 <div className="min-w-0">
                   <span className="text-sm sm:text-lg font-black text-white block leading-tight truncate">{teamB?.name || 'Team B'}</span>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${
-                    currentInnings.battingTeamId === teamB?.id ? 'text-amber-400 font-bold' : 'text-slate-400'
-                  }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${currentInnings.battingTeamId === teamB?.id ? 'text-amber-400 font-bold' : 'text-slate-400'
+                    }`}>
                     {currentInnings.battingTeamId === teamB?.id ? '🏏 Currently Batting' : '⚾ Currently Bowling/Fielding'}
                   </span>
                 </div>
@@ -1104,11 +1130,11 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 <span>
                   Power Over:{' '}
                   <strong className="text-white">
-                    {currentInnings.powerOverOptedOut 
-                      ? 'None (Opted Out)' 
-                      : currentInnings.powerOverDeclaredNumber 
-                      ? `Over ${currentInnings.powerOverDeclaredNumber}` 
-                      : 'None'}
+                    {currentInnings.powerOverOptedOut
+                      ? 'None (Opted Out)'
+                      : currentInnings.powerOverDeclaredNumber
+                        ? `Over ${currentInnings.powerOverDeclaredNumber}`
+                        : 'None'}
                   </strong>
                 </span>
                 <span className="text-[10px] bg-purple-900/80 text-purple-200 px-1.5 py-0.5 rounded font-black border border-purple-700/50">
@@ -1127,8 +1153,8 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 {currentInnings.powerOverOptedOut
                   ? '⚡ Power Over: Opted Out'
                   : currentInnings.powerOverDeclaredNumber
-                  ? `⚡ Power Over: Over ${currentInnings.powerOverDeclaredNumber}`
-                  : '⚡ Declare Power Over (Mandatory)'}
+                    ? `⚡ Power Over: Over ${currentInnings.powerOverDeclaredNumber}`
+                    : '⚡ Declare Power Over (Mandatory)'}
               </span>
             </button>
           )}
@@ -1400,21 +1426,20 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                     key={b.id}
                     type="button"
                     onClick={() => handleOpenEditBall(b, match.currentInningsIndex)}
-                    className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all cursor-pointer hover:scale-110 active:scale-95 ${
-                      b.dismissal
-                        ? 'bg-rose-600 border-rose-400 text-white ring-1 ring-rose-400/50'
-                        : b.outcomeType === 'SIX'
+                    className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all cursor-pointer hover:scale-110 active:scale-95 ${b.dismissal
+                      ? 'bg-rose-600 border-rose-400 text-white ring-1 ring-rose-400/50'
+                      : b.outcomeType === 'SIX'
                         ? 'bg-amber-500 border-amber-300 text-slate-950 font-black ring-1 ring-amber-300/50'
                         : b.outcomeType === 'FOUR'
-                        ? 'bg-blue-600 border-blue-400 text-white font-black ring-1 ring-blue-400/50'
-                        : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
-                        ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
-                        : b.outcomeType === 'DECLARATION_1D'
-                        ? 'bg-purple-800 border-purple-500 text-purple-200'
-                        : b.effectiveRuns === 0
-                        ? 'bg-slate-800 border-slate-700 text-slate-400'
-                        : 'bg-emerald-800 border-emerald-600 text-emerald-100 ring-1 ring-emerald-400/30'
-                    }`}
+                          ? 'bg-blue-600 border-blue-400 text-white font-black ring-1 ring-blue-400/50'
+                          : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
+                            ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
+                            : b.outcomeType === 'DECLARATION_1D'
+                              ? 'bg-purple-800 border-purple-500 text-purple-200'
+                              : b.effectiveRuns === 0
+                                ? 'bg-slate-800 border-slate-700 text-slate-400'
+                                : 'bg-emerald-800 border-emerald-600 text-emerald-100 ring-1 ring-emerald-400/30'
+                      }`}
                     title={`Click to edit ball ${b.overNumber}.${b.ballNumber}: ${b.commentary} (${b.batsmanName})`}
                   >
                     <span>
@@ -1455,23 +1480,21 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                         key={b.id}
                         type="button"
                         onClick={() => handleOpenEditBall(b, match.currentInningsIndex)}
-                        className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all relative ${
-                          isLocked ? 'cursor-pointer hover:scale-105 opacity-85' : 'cursor-pointer hover:scale-110 active:scale-95'
-                        } ${
-                          b.dismissal
+                        className={`min-w-9 h-9 rounded-full flex flex-col items-center justify-center font-bold text-xs border shadow-sm transition-all relative ${isLocked ? 'cursor-pointer hover:scale-105 opacity-85' : 'cursor-pointer hover:scale-110 active:scale-95'
+                          } ${b.dismissal
                             ? 'bg-rose-600 border-rose-400 text-white'
                             : b.outcomeType === 'SIX'
-                            ? 'bg-amber-500 border-amber-300 text-slate-950 font-black'
-                            : b.outcomeType === 'FOUR'
-                            ? 'bg-blue-600 border-blue-400 text-white font-black'
-                            : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
-                            ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
-                            : b.outcomeType === 'DECLARATION_1D'
-                            ? 'bg-purple-800 border-purple-500 text-purple-200'
-                            : b.effectiveRuns === 0
-                            ? 'bg-slate-800 border-slate-700 text-slate-400'
-                            : 'bg-emerald-800 border-emerald-600 text-emerald-100'
-                        }`}
+                              ? 'bg-amber-500 border-amber-300 text-slate-950 font-black'
+                              : b.outcomeType === 'FOUR'
+                                ? 'bg-blue-600 border-blue-400 text-white font-black'
+                                : b.outcomeType === 'WIDE' || b.outcomeType === 'NO_BALL'
+                                  ? 'bg-amber-900/60 border-amber-600/80 text-amber-300'
+                                  : b.outcomeType === 'DECLARATION_1D'
+                                    ? 'bg-purple-800 border-purple-500 text-purple-200'
+                                    : b.effectiveRuns === 0
+                                      ? 'bg-slate-800 border-slate-700 text-slate-400'
+                                      : 'bg-emerald-800 border-emerald-600 text-emerald-100'
+                          }`}
                         title={isLocked ? `🔒 Ball ${b.overNumber}.${b.ballNumber}: Past Over (Super Admin to edit)` : `Click to edit ball ${b.overNumber}.${b.ballNumber}`}
                       >
                         <span className="relative">
@@ -1531,11 +1554,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 <button
                   type="button"
                   onClick={() => setDismissedWho('STRIKER')}
-                  className={`p-2.5 rounded-lg border text-xs font-bold text-left transition ${
-                    dismissedWho === 'STRIKER'
-                      ? 'bg-rose-950 border-rose-500 text-white'
-                      : 'bg-slate-800 border-slate-700 text-slate-300'
-                  }`}
+                  className={`p-2.5 rounded-lg border text-xs font-bold text-left transition ${dismissedWho === 'STRIKER'
+                    ? 'bg-rose-950 border-rose-500 text-white'
+                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                    }`}
                 >
                   <span className="block text-[10px] text-slate-400">Striker</span>
                   <span className="truncate">{striker?.name}</span>
@@ -1543,11 +1565,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 <button
                   type="button"
                   onClick={() => setDismissedWho('NON_STRIKER')}
-                  className={`p-2.5 rounded-lg border text-xs font-bold text-left transition ${
-                    dismissedWho === 'NON_STRIKER'
-                      ? 'bg-rose-950 border-rose-500 text-white'
-                      : 'bg-slate-800 border-slate-700 text-slate-300'
-                  }`}
+                  className={`p-2.5 rounded-lg border text-xs font-bold text-left transition ${dismissedWho === 'NON_STRIKER'
+                    ? 'bg-rose-950 border-rose-500 text-white'
+                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                    }`}
                 >
                   <span className="block text-[10px] text-slate-400">Non-Striker</span>
                   <span className="truncate">{nonStriker?.name}</span>
@@ -1632,22 +1653,20 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                     <button
                       type="button"
                       onClick={() => setRunOutType('DIRECT')}
-                      className={`p-2 rounded-lg border text-xs font-bold text-center transition ${
-                        runOutType === 'DIRECT'
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                          : 'bg-slate-800 border-slate-700 text-slate-400'
-                      }`}
+                      className={`p-2 rounded-lg border text-xs font-bold text-center transition ${runOutType === 'DIRECT'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-400'
+                        }`}
                     >
                       <span>Direct Hit (+8 pts)</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setRunOutType('ASSISTED')}
-                      className={`p-2 rounded-lg border text-xs font-bold text-center transition ${
-                        runOutType === 'ASSISTED'
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                          : 'bg-slate-800 border-slate-700 text-slate-400'
-                      }`}
+                      className={`p-2 rounded-lg border text-xs font-bold text-center transition ${runOutType === 'ASSISTED'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-400'
+                        }`}
                     >
                       <span>Assisted (+4 pts each)</span>
                     </button>
@@ -1757,6 +1776,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
             <div className="text-xs text-slate-300 bg-slate-800/80 p-2.5 rounded-lg border border-slate-700 space-y-1">
               <p>• <strong>Pair Batting Rule:</strong> Each pair bats for 2 overs.</p>
+              <p>• <strong>1-Cycle Batting Rule:</strong> Once a batsman completes their batting cycle, they cannot bat again.</p>
               <p>• <strong>Overs 1 & 2:</strong> Female pair & female bowler mandatory (cannot be changed away from female).</p>
               <p>• <strong>Bowling Rule:</strong> Each player can only bowl 1 over max (no consecutive or duplicate overs).</p>
             </div>
@@ -1779,11 +1799,14 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   onChange={(e) => setSelectedNewStrikerId(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-semibold focus:outline-none"
                 >
-                  {eligibleBatters.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} [{p.category}]
-                    </option>
-                  ))}
+                  {eligibleBatters.map(p => {
+                    const hasCompleted = completedBatterIds.has(p.id) && p.id !== striker?.id;
+                    return (
+                      <option key={p.id} value={p.id} disabled={hasCompleted}>
+                        {p.name} [{p.category}] {hasCompleted ? `(Completed Batting in ${batterBlockMap[p.id]} - Cannot Bat Again)` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -1797,11 +1820,14 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   onChange={(e) => setSelectedNewNonStrikerId(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-semibold focus:outline-none"
                 >
-                  {eligibleBatters.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} [{p.category}]
-                    </option>
-                  ))}
+                  {eligibleBatters.map(p => {
+                    const hasCompleted = completedBatterIds.has(p.id) && p.id !== nonStriker?.id;
+                    return (
+                      <option key={p.id} value={p.id} disabled={hasCompleted}>
+                        {p.name} [{p.category}] {hasCompleted ? `(Completed Batting in ${batterBlockMap[p.id]} - Cannot Bat Again)` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -1873,11 +1899,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
               <button
                 type="button"
                 onClick={() => setNoBallType('NORMAL')}
-                className={`p-3.5 rounded-xl border text-left transition ${
-                  noBallType === 'NORMAL'
-                    ? 'bg-amber-950/60 border-amber-500 text-white ring-2 ring-amber-500/30'
-                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
-                }`}
+                className={`p-3.5 rounded-xl border text-left transition ${noBallType === 'NORMAL'
+                  ? 'bg-amber-950/60 border-amber-500 text-white ring-2 ring-amber-500/30'
+                  : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                  }`}
               >
                 <div className="text-xs font-black text-amber-300 flex items-center space-x-1">
                   <Zap className="w-3.5 h-3.5" />
@@ -1891,11 +1916,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
               <button
                 type="button"
                 onClick={() => setNoBallType('LEG_UPLIFT')}
-                className={`p-3.5 rounded-xl border text-left transition ${
-                  noBallType === 'LEG_UPLIFT'
-                    ? 'bg-orange-950/60 border-orange-500 text-white ring-2 ring-orange-500/30'
-                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
-                }`}
+                className={`p-3.5 rounded-xl border text-left transition ${noBallType === 'LEG_UPLIFT'
+                  ? 'bg-orange-950/60 border-orange-500 text-white ring-2 ring-orange-500/30'
+                  : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                  }`}
               >
                 <div className="text-xs font-black text-orange-400 flex items-center space-x-1">
                   <AlertCircle className="w-3.5 h-3.5" />
@@ -1918,11 +1942,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                     key={runs}
                     type="button"
                     onClick={() => setNoBallExtraBatRuns(runs)}
-                    className={`py-2 rounded-lg text-xs font-bold border transition ${
-                      noBallExtraBatRuns === runs
-                        ? 'bg-amber-500 border-amber-400 text-slate-950'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                    }`}
+                    className={`py-2 rounded-lg text-xs font-bold border transition ${noBallExtraBatRuns === runs
+                      ? 'bg-amber-500 border-amber-400 text-slate-950'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                      }`}
                   >
                     {runs === 0 ? '0' : `+${runs}`}
                   </button>
@@ -1981,11 +2004,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                       setSelectedInningsFilter(innIdx);
                       setSelectedOverFilter(1);
                     }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap ${
-                      selectedInningsFilter === innIdx
-                        ? 'bg-amber-500 text-slate-950 shadow-md'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap ${selectedInningsFilter === innIdx
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
                   >
                     <span>Innings {innIdx + 1}: {innTeam?.shortName || innTeam?.name || `Team ${innIdx + 1}`}</span>
                     <span className="font-mono text-[10px] font-black opacity-80">
@@ -2009,13 +2031,12 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   <button
                     key={ov}
                     onClick={() => setSelectedOverFilter(ov)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border transition flex items-center space-x-1.5 ${
-                      isSelected
-                        ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-md'
-                        : isLockedForScorer
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border transition flex items-center space-x-1.5 ${isSelected
+                      ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-md'
+                      : isLockedForScorer
                         ? 'bg-slate-900/90 border-slate-800 text-slate-400 hover:bg-slate-800/80'
                         : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                    }`}
+                      }`}
                   >
                     {isLockedForScorer && <Lock className="w-3 h-3 text-slate-500 shrink-0" />}
                     <span>Over {ov}</span>
@@ -2065,17 +2086,16 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                         {idx + 1}
                       </span>
 
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase shrink-0 ${
-                        ball.dismissal
-                          ? 'bg-rose-600 text-white'
-                          : ball.outcomeType === 'SIX'
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase shrink-0 ${ball.dismissal
+                        ? 'bg-rose-600 text-white'
+                        : ball.outcomeType === 'SIX'
                           ? 'bg-amber-500 text-slate-950'
                           : ball.outcomeType === 'FOUR'
-                          ? 'bg-blue-600 text-white'
-                          : ball.outcomeType === 'WIDE' || ball.outcomeType === 'NO_BALL'
-                          ? 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
-                          : 'bg-slate-800 text-slate-200'
-                      }`}>
+                            ? 'bg-blue-600 text-white'
+                            : ball.outcomeType === 'WIDE' || ball.outcomeType === 'NO_BALL'
+                              ? 'bg-amber-900/60 text-amber-300 border border-amber-600/40'
+                              : 'bg-slate-800 text-slate-200'
+                        }`}>
                         {ball.dismissal ? 'WICKET' : ball.outcomeType.replace('_', ' ')}
                       </span>
 
@@ -2098,9 +2118,8 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end shrink-0">
-                      <span className={`text-sm font-black font-mono ${
-                        ball.effectiveRuns < 0 ? 'text-rose-400' : ball.effectiveRuns > 0 ? 'text-emerald-400' : 'text-slate-400'
-                      }`}>
+                      <span className={`text-sm font-black font-mono ${ball.effectiveRuns < 0 ? 'text-rose-400' : ball.effectiveRuns > 0 ? 'text-emerald-400' : 'text-slate-400'
+                        }`}>
                         {ball.effectiveRuns > 0 ? `+${ball.effectiveRuns}` : ball.effectiveRuns} runs
                       </span>
 
@@ -2331,18 +2350,16 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                         <button
                           type="button"
                           onClick={() => setEditRunOutType('DIRECT')}
-                          className={`p-1.5 rounded text-xs font-bold ${
-                            editRunOutType === 'DIRECT' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
-                          }`}
+                          className={`p-1.5 rounded text-xs font-bold ${editRunOutType === 'DIRECT' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
+                            }`}
                         >
                           Direct Hit (+8 pts)
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditRunOutType('ASSISTED')}
-                          className={`p-1.5 rounded text-xs font-bold ${
-                            editRunOutType === 'ASSISTED' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
-                          }`}
+                          className={`p-1.5 rounded text-xs font-bold ${editRunOutType === 'ASSISTED' ? 'bg-amber-500/20 border border-amber-500 text-amber-300' : 'bg-slate-800 text-slate-400'
+                            }`}
                         >
                           Assisted (+4 pts each)
                         </button>
@@ -2477,11 +2494,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                   key={r}
                   type="button"
                   onClick={() => setByeRuns(r)}
-                  className={`py-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                    byeRuns === r
-                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black ring-2 ring-amber-500/30'
-                      : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 font-bold'
-                  }`}
+                  className={`py-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center ${byeRuns === r
+                    ? 'bg-amber-500 border-amber-400 text-slate-950 font-black ring-2 ring-amber-500/30'
+                    : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 font-bold'
+                    }`}
                 >
                   <span className="text-lg font-black">{r}</span>
                   <span className="text-[10px] uppercase opacity-80 font-bold">
@@ -2560,13 +2576,12 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                       type="button"
                       disabled={isRestrictedInSemi}
                       onClick={() => !isRestrictedInSemi && setSelectedPowerOverNum(ov)}
-                      className={`py-3 px-2 rounded-xl border text-center transition ${
-                        isRestrictedInSemi
-                          ? 'bg-slate-900/60 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
-                          : selectedPowerOverNum === ov
+                      className={`py-3 px-2 rounded-xl border text-center transition ${isRestrictedInSemi
+                        ? 'bg-slate-900/60 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                        : selectedPowerOverNum === ov
                           ? 'bg-purple-600 border-purple-400 text-white font-black shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/50'
                           : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 font-bold'
-                      }`}
+                        }`}
                     >
                       <span className="block text-sm">Over {ov}</span>
                       {isRestrictedInSemi ? (
@@ -2702,6 +2717,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
             <div className="bg-amber-950/40 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-200 space-y-1">
               <p className="font-bold text-white">Pair Batting Regulations:</p>
               <p>• <strong>2-Over Cycle Finished:</strong> The previous pair has completed their 2 overs. A new batting pair is mandatory.</p>
+              <p>• <strong>1-Cycle Batting Rule:</strong> Once a batsman completes their 2-over cycle, they cannot be selected to bat again.</p>
               <p>• <strong>Bowler Change:</strong> A new bowler must also be selected for Over {currentOverNumber} (1 over limit per bowler).</p>
             </div>
 
@@ -2718,10 +2734,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 >
                   <option value="">-- Choose New Striker --</option>
                   {eligibleBatters.map(p => {
-                    const wasInPrevPair = prevPairBatterIds.has(p.id);
+                    const hasCompleted = completedBatterIds.has(p.id);
                     return (
-                      <option key={p.id} value={p.id}>
-                        {p.name} [{p.category}] {wasInPrevPair ? '(Just Batted in Previous Pair)' : ''}
+                      <option key={p.id} value={p.id} disabled={hasCompleted}>
+                        {p.name} [{p.category}] {hasCompleted ? `(Completed Batting in ${batterBlockMap[p.id]} - Cannot Bat Again)` : ''}
                       </option>
                     );
                   })}
@@ -2740,10 +2756,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 >
                   <option value="">-- Choose New Non-Striker --</option>
                   {eligibleBatters.map(p => {
-                    const wasInPrevPair = prevPairBatterIds.has(p.id);
+                    const hasCompleted = completedBatterIds.has(p.id);
                     return (
-                      <option key={p.id} value={p.id}>
-                        {p.name} [{p.category}] {wasInPrevPair ? '(Just Batted in Previous Pair)' : ''}
+                      <option key={p.id} value={p.id} disabled={hasCompleted}>
+                        {p.name} [{p.category}] {hasCompleted ? `(Completed Batting in ${batterBlockMap[p.id]} - Cannot Bat Again)` : ''}
                       </option>
                     );
                   })}

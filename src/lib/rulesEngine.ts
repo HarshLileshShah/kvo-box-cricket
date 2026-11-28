@@ -1,4 +1,4 @@
-import { BallOutcomeType, DismissalType, PlayerCategory } from '@/types/cricket';
+import { BallOutcomeType, DismissalType, PlayerCategory, Innings } from '@/types/cricket';
 
 export interface CalculateBallRunsParams {
   outcomeType: BallOutcomeType;
@@ -365,4 +365,53 @@ export function calculateNRR(
   const battingRate = runsScored / oversFaced;
   const bowlingRate = runsConceded / oversBowled;
   return Number((battingRate - bowlingRate).toFixed(3));
+}
+
+/**
+ * Returns batters who have already completed their 2-over batting cycle
+ * (or Over 5 solo in Semi/Finals). Once completed, they cannot bat again.
+ */
+export function getCompletedBatters(inn: Innings, isSemiOrFinal: boolean): {
+  completedBatterIds: Set<string>;
+  batterOversMap: Record<string, number[]>;
+  batterBlockMap: Record<string, string>;
+} {
+  const completedOvers = inn.completedOvers;
+  const completedBatterIds = new Set<string>();
+  const batterOversMap: Record<string, number[]> = {};
+  const batterBlockMap: Record<string, string> = {};
+
+  const completedBlocks: { label: string; overs: number[] }[] = [];
+  if (isSemiOrFinal) {
+    if (completedOvers >= 2) completedBlocks.push({ label: 'Overs 1-2', overs: [1, 2] });
+    if (completedOvers >= 4) completedBlocks.push({ label: 'Overs 3-4', overs: [3, 4] });
+    if (completedOvers >= 5) completedBlocks.push({ label: 'Over 5 (Solo)', overs: [5] });
+    if (completedOvers >= 7) completedBlocks.push({ label: 'Overs 6-7', overs: [6, 7] });
+    if (completedOvers >= 9) completedBlocks.push({ label: 'Overs 8-9', overs: [8, 9] });
+  } else {
+    if (completedOvers >= 2) completedBlocks.push({ label: 'Overs 1-2', overs: [1, 2] });
+    if (completedOvers >= 4) completedBlocks.push({ label: 'Overs 3-4', overs: [3, 4] });
+    if (completedOvers >= 6) completedBlocks.push({ label: 'Overs 5-6', overs: [5, 6] });
+    if (completedOvers >= 8) completedBlocks.push({ label: 'Overs 7-8', overs: [7, 8] });
+  }
+
+  for (const block of completedBlocks) {
+    const blockBalls = inn.balls.filter(b => block.overs.includes(b.overNumber));
+    for (const b of blockBalls) {
+      if (b.batsmanId) {
+        completedBatterIds.add(b.batsmanId);
+        if (!batterOversMap[b.batsmanId]) batterOversMap[b.batsmanId] = [];
+        if (!batterOversMap[b.batsmanId].includes(b.overNumber)) batterOversMap[b.batsmanId].push(b.overNumber);
+        batterBlockMap[b.batsmanId] = block.label;
+      }
+      if (b.nonStrikerId) {
+        completedBatterIds.add(b.nonStrikerId);
+        if (!batterOversMap[b.nonStrikerId]) batterOversMap[b.nonStrikerId] = [];
+        if (!batterOversMap[b.nonStrikerId].includes(b.overNumber)) batterOversMap[b.nonStrikerId].push(b.overNumber);
+        batterBlockMap[b.nonStrikerId] = block.label;
+      }
+    }
+  }
+
+  return { completedBatterIds, batterOversMap, batterBlockMap };
 }
