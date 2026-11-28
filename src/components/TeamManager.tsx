@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Team, Player, PlayerCategory } from '@/types/cricket';
 import { 
   Users, 
@@ -12,7 +12,9 @@ import {
   Shield, 
   Sparkles, 
   Edit3,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface TeamManagerProps {
@@ -25,6 +27,39 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [showEditTeamModal, setShowEditTeamModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+
+  // Horizontal Scroll State & Ref for Team Selection Pills
+  const teamListRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkScroll = () => {
+    const el = teamListRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 5);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  };
+
+  useEffect(() => {
+    checkScroll();
+    const el = teamListRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [teams]);
+
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (!teamListRef.current) return;
+    const amount = 240;
+    teamListRef.current.scrollBy({
+      left: direction === 'left' ? -amount : amount,
+      behavior: 'smooth'
+    });
+  };
 
   // New Team Form State
   const [newTeamName, setNewTeamName] = useState('');
@@ -213,39 +248,84 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
         </button>
       </div>
 
-      {/* Team Selection Pills */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-2 no-scrollbar">
-        {teams.map(t => {
-          const v = validateTeamRoster(t);
-          const isSelected = t.id === activeTeam?.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setSelectedTeamId(t.id)}
-              className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition whitespace-nowrap shadow-sm ${
-                isSelected
-                  ? 'bg-slate-800 border-amber-500 text-white ring-2 ring-amber-500/30'
-                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800/60'
-              }`}
-            >
-              {t.logoUrl ? (
-                <img src={t.logoUrl} alt={t.name} className="w-5 h-5 object-contain rounded p-0.5 bg-slate-950 shrink-0" />
-              ) : (
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: t.color || '#3b82f6' }}
-                />
-              )}
-              <span>{t.name}</span>
-              <span className="text-[10px] text-slate-400">({t.players.length}/9)</span>
-              {v.isCompliant ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-              )}
-            </button>
-          );
-        })}
+      {/* Team Selection Pills with Visual Scroll & Navigation */}
+      <div className="relative group">
+        {/* Left Scroll Button */}
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => handleScroll('left')}
+            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2.5 z-20 w-8 h-8 rounded-full bg-slate-900/95 border border-amber-500/60 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center shadow-xl backdrop-blur-md transition active:scale-90"
+            title="Scroll left"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Right Scroll Button */}
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => handleScroll('right')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2.5 z-20 w-8 h-8 rounded-full bg-slate-900/95 border border-amber-500/60 text-amber-400 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center shadow-xl backdrop-blur-md transition active:scale-90 animate-pulse"
+            title="Scroll right to view more teams"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Left Edge Gradient Fade */}
+        {canScrollLeft && (
+          <div className="absolute left-0 top-0 bottom-3 w-10 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent pointer-events-none z-10 rounded-l-xl" />
+        )}
+
+        {/* Right Edge Gradient Fade */}
+        {canScrollRight && (
+          <div className="absolute right-0 top-0 bottom-3 w-10 bg-gradient-to-l from-slate-950 via-slate-950/80 to-transparent pointer-events-none z-10 rounded-r-xl" />
+        )}
+
+        {/* Scrollable Container */}
+        <div 
+          ref={teamListRef}
+          className="flex items-center space-x-2 overflow-x-auto pb-3 pt-1 px-1 visual-scrollbar scroll-smooth"
+        >
+          {teams.map(t => {
+            const v = validateTeamRoster(t);
+            const isSelected = t.id === activeTeam?.id;
+            return (
+              <button
+                key={t.id}
+                onClick={(e) => {
+                  setSelectedTeamId(t.id);
+                  e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                }}
+                className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition whitespace-nowrap shadow-sm shrink-0 ${
+                  isSelected
+                    ? 'bg-slate-800 border-amber-500 text-white ring-2 ring-amber-500/30'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800/60'
+                }`}
+              >
+                {t.logoUrl ? (
+                  <img src={t.logoUrl} alt={t.name} className="w-5 h-5 object-contain rounded p-0.5 bg-slate-950 shrink-0" />
+                ) : (
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: t.color || '#3b82f6' }}
+                  />
+                )}
+                <span>{t.name}</span>
+                <span className="text-[10px] text-slate-400">({t.players.length}/9)</span>
+                {v.isCompliant ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Active Team Detail Card */}

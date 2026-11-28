@@ -31,3 +31,24 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Visual styled scrollbar for visible horizontal scrolling */
+.visual-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.visual-scrollbar::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 9999px;
+}
+.visual-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.visual-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
+.visual-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #0f172a;
+}

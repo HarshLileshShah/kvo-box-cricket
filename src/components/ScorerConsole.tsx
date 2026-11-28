@@ -1467,7 +1467,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
             </div>
 
             {/* Innings Selector Tabs */}
-            <div className="flex items-center space-x-2 border-b border-slate-800 pb-2.5 flex-shrink-0 overflow-x-auto no-scrollbar">
+            <div className="flex items-center space-x-2 border-b border-slate-800 pb-2.5 flex-shrink-0 overflow-x-auto visual-scrollbar">
               {match.innings.map((inn, innIdx) => {
                 const innTeam = teams.find(t => t.id === inn.battingTeamId);
                 return (
@@ -1493,7 +1493,7 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
             </div>
 
             {/* Over Selector Tabs */}
-            <div className="flex items-center space-x-2 overflow-x-auto pb-2 flex-shrink-0 no-scrollbar">
+            <div className="flex items-center space-x-2 overflow-x-auto pb-2.5 flex-shrink-0 visual-scrollbar">
               {Array.from({ length: match.totalOvers }, (_, i) => i + 1).map(ov => {
                 const targetInnings = match.innings[selectedInningsFilter] || currentInnings;
                 const ballsInOv = targetInnings.balls.filter(b => b.overNumber === ov);
