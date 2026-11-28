@@ -42,11 +42,13 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
 
   useEffect(() => {
     checkScroll();
+    const timer = setTimeout(checkScroll, 100);
     const el = teamListRef.current;
-    if (!el) return;
+    if (!el) return () => clearTimeout(timer);
     el.addEventListener('scroll', checkScroll);
     window.addEventListener('resize', checkScroll);
     return () => {
+      clearTimeout(timer);
       el.removeEventListener('scroll', checkScroll);
       window.removeEventListener('resize', checkScroll);
     };
@@ -325,6 +327,29 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ teams, onSaveTeam }) =
               </button>
             );
           })}
+        </div>
+
+        {/* Visual scroll dots & indicator */}
+        <div className="flex items-center justify-between px-1 pt-1 text-[10px] text-slate-500 font-medium">
+          <span className="flex items-center space-x-1">
+            <span>Showing all {teams.length} teams</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-amber-500/80">Scroll or use arrows ◄ ►</span>
+          </span>
+          <div className="flex items-center space-x-1.5 py-0.5">
+            {teams.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectedTeamId(t.id)}
+                className={`h-1.5 rounded-full transition-all ${
+                  t.id === activeTeam?.id ? 'w-5 bg-amber-400 shadow-sm shadow-amber-400/50' : 'w-1.5 bg-slate-700 hover:bg-slate-500'
+                }`}
+                title={`Select ${t.name}`}
+                aria-label={`Select ${t.name}`}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
