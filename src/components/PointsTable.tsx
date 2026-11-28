@@ -49,8 +49,13 @@ export const PointsTable: React.FC<PointsTableProps> = ({
 
   const [isUpdatingPlayoffs, setIsUpdatingPlayoffs] = useState(false);
 
-  // Auto-Qualify Top 4 Teams (Unlocked for testing & live tournaments)
+  // Auto-Qualify Top 4 Teams (Guarded until all league matches complete)
   const handleAutoAssignPlayoffs = async () => {
+    if (!isLeagueCompleted) {
+      alert(`Cannot qualify teams for Semifinals yet! All ${leagueMatches.length} league matches must be completed first (${completedLeagueMatches.length}/${leagueMatches.length} done).`);
+      return;
+    }
+
     const s1A = standings[0]?.teamId || teams[0]?.id;
     const s1B = standings[3]?.teamId || teams[3]?.id;
     const s2A = standings[1]?.teamId || teams[1]?.id;
@@ -78,6 +83,10 @@ export const PointsTable: React.FC<PointsTableProps> = ({
   };
 
   const handleManualApplyPlayoffs = async () => {
+    if (!isLeagueCompleted) {
+      alert(`Cannot set Semifinals yet! All ${leagueMatches.length} league matches must be completed first (${completedLeagueMatches.length}/${leagueMatches.length} done).`);
+      return;
+    }
     try {
       setIsUpdatingPlayoffs(true);
       await onSetPlayoffTeams({
@@ -110,11 +119,16 @@ export const PointsTable: React.FC<PointsTableProps> = ({
 
         <button
           onClick={handleAutoAssignPlayoffs}
-          disabled={isUpdatingPlayoffs}
-          className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition active:scale-95 disabled:opacity-50"
+          disabled={isUpdatingPlayoffs || !isLeagueCompleted}
+          title={!isLeagueCompleted ? `Locked: ${leagueMatches.length - completedLeagueMatches.length} league matches remaining` : 'Auto-qualify top 4 teams'}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-black text-xs shadow-lg transition active:scale-95 ${
+            isLeagueCompleted
+              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+              : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/60'
+          }`}
         >
-          <Sparkles className="w-4 h-4 text-slate-950" />
-          <span>Auto-Qualify Top 4 to Semifinals</span>
+          {!isLeagueCompleted ? <Lock className="w-4 h-4 text-slate-500" /> : <Sparkles className="w-4 h-4 text-slate-950" />}
+          <span>{!isLeagueCompleted ? `Playoffs Locked (${completedLeagueMatches.length}/9)` : 'Auto-Qualify Top 4 to Semifinals'}</span>
         </button>
       </div>
 
@@ -293,21 +307,35 @@ export const PointsTable: React.FC<PointsTableProps> = ({
         </div>
 
         {/* Playoff Seeding & Status Banner */}
-        <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3.5 text-emerald-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span>
-              <strong>Playoffs Unlocked:</strong> Semifinals and Grand Final are enabled and ready to officiate, score, or seed at any time.
+        {!isLeagueCompleted ? (
+          <div className="bg-rose-950/40 border border-rose-500/40 rounded-xl p-3.5 text-rose-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center space-x-2">
+              <Lock className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>
+                <strong>Playoffs Locked:</strong> Semifinals and Grand Final will unlock once all 9 league matches are completed ({completedLeagueMatches.length} of {leagueMatches.length} completed). Top 4 teams will auto-qualify based on final standings.
+              </span>
+            </div>
+            <span className="text-[11px] font-bold text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800 shrink-0">
+              {leagueMatches.length - completedLeagueMatches.length} League Matches Remaining
             </span>
           </div>
-          <button
-            onClick={handleAutoAssignPlayoffs}
-            disabled={isUpdatingPlayoffs}
-            className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg shadow-md transition active:scale-95 whitespace-nowrap"
-          >
-            {isUpdatingPlayoffs ? 'Seeding...' : 'Auto-Seed Top 4 into Semis'}
-          </button>
-        </div>
+        ) : (
+          <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3.5 text-emerald-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>
+                <strong>Playoffs Unlocked:</strong> All league matches completed! Top 4 teams are ready to be seeded into Semifinals.
+              </span>
+            </div>
+            <button
+              onClick={handleAutoAssignPlayoffs}
+              disabled={isUpdatingPlayoffs}
+              className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg shadow-md transition active:scale-95 whitespace-nowrap"
+            >
+              {isUpdatingPlayoffs ? 'Seeding...' : 'Auto-Seed Top 4 into Semis'}
+            </button>
+          </div>
+        )}
 
         {/* Visual Bracket Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

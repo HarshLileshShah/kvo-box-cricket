@@ -132,11 +132,11 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const battingTeam = teams.find(t => t.id === currentInnings.battingTeamId);
   const bowlingTeam = teams.find(t => t.id === currentInnings.bowlingTeamId);
 
-  // Check if semifinals are locked (relaxed for testing mode)
+  // Check if semifinals are locked because league matches are incomplete
   const isSemifinalOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
   const leagueMatches = allMatches.filter(m => m.stage === 'LEAGUE');
   const completedLeagueCount = leagueMatches.filter(m => m.status === 'COMPLETED').length;
-  const isLeagueIncomplete = false; // Enabled for testing: allows officiating and scoring semifinals ahead of league completion
+  const isLeagueIncomplete = isSemifinalOrFinal && leagueMatches.length > 0 && completedLeagueCount < leagueMatches.length;
 
   // Free hit status on this ball: Only true if previous delivery was a NORMAL No-Ball (Leg Uplift = NO free hit per rulebook!)
   const lastBall = currentInnings.balls[currentInnings.balls.length - 1];

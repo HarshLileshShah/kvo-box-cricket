@@ -330,14 +330,23 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredMatches.map(m => {
               const isPlayoff = m.stage === 'SEMI_FINAL' || m.stage === 'FINAL';
+              const leagueMatches = matches.filter(matchItem => matchItem.stage === 'LEAGUE');
+              const completedLeagueMatches = leagueMatches.filter(matchItem => matchItem.status === 'COMPLETED');
+              const isLeagueIncomplete = isPlayoff && leagueMatches.length > 0 && completedLeagueMatches.length < leagueMatches.length;
+
               const tA = teams.find(t => t.id === m.teamAId);
               const tB = teams.find(t => t.id === m.teamBId);
               const isLive = m.status === 'LIVE';
               const isCompleted = m.status === 'COMPLETED';
               const isTurf1 = m.boxVenue?.includes('Turf 1');
 
-              const teamAName = tA?.name || 'TBD';
-              const teamBName = tB?.name || 'TBD';
+              const defaultPlayoffNames: Record<string, { a: string; b: string }> = {
+                'match-semi-1': { a: 'Rank 1 (TBD)', b: 'Rank 4 (TBD)' },
+                'match-semi-2': { a: 'Rank 2 (TBD)', b: 'Rank 3 (TBD)' },
+                'match-final': { a: 'Winner Semi 1 (TBD)', b: 'Winner Semi 2 (TBD)' },
+              };
+              const teamAName = tA?.name || (isPlayoff ? (defaultPlayoffNames[m.id]?.a || 'TBD') : 'TBD');
+              const teamBName = tB?.name || (isPlayoff ? (defaultPlayoffNames[m.id]?.b || 'TBD') : 'TBD');
 
               return (
                 <div
@@ -383,7 +392,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                       </span>
 
                       {/* Live Toggle */}
-                      {onSetMatchStatus && (
+                      {onSetMatchStatus && !isLeagueIncomplete && (
                         m.status !== 'LIVE' ? (
                           <button
                             onClick={() => onSetMatchStatus(m.id, 'LIVE')}
@@ -497,38 +506,47 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => onOpenPlaying8Modal(m)}
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 text-xs transition"
-                      >
-                        <Users className="w-3.5 h-3.5 text-amber-400" />
-                        <span>
-                          {isPlayoff
-                            ? (m.lineupSubmitted ? 'Playing 9 ✓' : 'Playing 9 (All 9)')
-                            : (m.lineupSubmitted ? 'Playing 8 ✓' : 'Playing 8')}
-                        </span>
-                      </button>
+                      {isLeagueIncomplete ? (
+                        <div className="text-[11px] font-bold text-rose-400 bg-rose-950/60 border border-rose-800/60 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 shadow-sm">
+                          <Lock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>Locked until all 9 league matches complete ({completedLeagueMatches.length}/{leagueMatches.length} done)</span>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => onOpenPlaying8Modal(m)}
+                            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 text-xs transition"
+                          >
+                            <Users className="w-3.5 h-3.5 text-amber-400" />
+                            <span>
+                              {isPlayoff
+                                ? (m.lineupSubmitted ? 'Playing 9 ✓' : 'Playing 9 (All 9)')
+                                : (m.lineupSubmitted ? 'Playing 8 ✓' : 'Playing 8')}
+                            </span>
+                          </button>
 
-                      {m.status === 'UPCOMING' && (
-                        <button
-                          onClick={() => openTossModal(m)}
-                          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-xs transition"
-                        >
-                          <Coins className="w-3.5 h-3.5" />
-                          <span>Toss</span>
-                        </button>
+                          {m.status === 'UPCOMING' && (
+                            <button
+                              onClick={() => openTossModal(m)}
+                              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 text-xs transition"
+                            >
+                              <Coins className="w-3.5 h-3.5" />
+                              <span>Toss</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              onSelectMatch(m.id);
+                              setActiveTab(isLive ? 'scorer' : 'live-viewer');
+                            }}
+                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition"
+                          >
+                            <Gamepad2 className="w-3.5 h-3.5" />
+                            <span>{isLive ? 'Score Live' : 'View Match'}</span>
+                          </button>
+                        </>
                       )}
-
-                      <button
-                        onClick={() => {
-                          onSelectMatch(m.id);
-                          setActiveTab(isLive ? 'scorer' : 'live-viewer');
-                        }}
-                        className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition"
-                      >
-                        <Gamepad2 className="w-3.5 h-3.5" />
-                        <span>{isLive ? 'Score Live' : 'View Match'}</span>
-                      </button>
                     </div>
                   </div>
                 </div>

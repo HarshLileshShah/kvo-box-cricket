@@ -3,6 +3,7 @@ import path from 'path';
 import { Match, Team, MatchStatus, Innings, TournamentRulesConfig, BallOutcomeType, DismissalType, PlayerCategory } from '@/types/cricket';
 import { INITIAL_TEAMS, INITIAL_MATCHES, OFFICIAL_TOURNAMENT_RULES, createInitialInnings } from './mockData';
 import { calculateBallOutcome, getCompletedBatters } from './rulesEngine';
+import { calculateLeagueStandings } from './statsService';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STATE_FILE = path.join(DATA_DIR, 'tournament_state.json');
@@ -226,6 +227,35 @@ function ensurePlayoffsReady(state: TournamentState) {
   const semi2 = state.matches.find(m => m.id === 'match-semi-2');
   const finalMatch = state.matches.find(m => m.id === 'match-final');
 
+  const leagueMatches = state.matches.filter(m => m.stage === 'LEAGUE');
+  const incompleteLeague = leagueMatches.filter(m => m.status !== 'COMPLETED');
+
+  // If league matches are incomplete, playoffs remain locked and teams are TBD
+  if (leagueMatches.length > 0 && incompleteLeague.length > 0) {
+    if (semi1 && (!semi1.status || semi1.status === 'UPCOMING')) {
+      semi1.teamAId = '';
+      semi1.teamBId = '';
+      semi1.lineupSubmitted = false;
+      semi1.teamAPlaying8Ids = undefined;
+      semi1.teamBPlaying8Ids = undefined;
+    }
+    if (semi2 && (!semi2.status || semi2.status === 'UPCOMING')) {
+      semi2.teamAId = '';
+      semi2.teamBId = '';
+      semi2.lineupSubmitted = false;
+      semi2.teamAPlaying8Ids = undefined;
+      semi2.teamBPlaying8Ids = undefined;
+    }
+    if (finalMatch && (!finalMatch.status || finalMatch.status === 'UPCOMING')) {
+      finalMatch.teamAId = '';
+      finalMatch.teamBId = '';
+      finalMatch.lineupSubmitted = false;
+      finalMatch.teamAPlaying8Ids = undefined;
+      finalMatch.teamBPlaying8Ids = undefined;
+    }
+    return;
+  }
+
   const setupPlayoffLineup = (m?: Match) => {
     if (!m) return;
     const tA = state.teams.find(t => t.id === m.teamAId);
@@ -236,13 +266,16 @@ function ensurePlayoffsReady(state: TournamentState) {
     if (tB && (!m.teamBPlaying8Ids || m.teamBPlaying8Ids.length < 9)) {
       m.teamBPlaying8Ids = tB.players.map(p => p.id);
     }
-    m.lineupSubmitted = true;
+    if (tA && tB) {
+      m.lineupSubmitted = true;
+    }
   };
 
   if (semi1) {
     if (!semi1.teamAId || !semi1.teamBId) {
-      semi1.teamAId = state.teams[0].id;
-      semi1.teamBId = state.teams[3].id;
+      const standings = calculateLeagueStandings(state.teams, state.matches);
+      semi1.teamAId = standings[0]?.teamId || state.teams[0].id;
+      semi1.teamBId = standings[3]?.teamId || state.teams[3].id;
       semi1.innings = [
         createInitialInnings(semi1.teamAId, semi1.teamBId, state.teams),
         createInitialInnings(semi1.teamBId, semi1.teamAId, state.teams),
@@ -253,8 +286,9 @@ function ensurePlayoffsReady(state: TournamentState) {
 
   if (semi2) {
     if (!semi2.teamAId || !semi2.teamBId) {
-      semi2.teamAId = state.teams[1].id;
-      semi2.teamBId = state.teams[2].id;
+      const standings = calculateLeagueStandings(state.teams, state.matches);
+      semi2.teamAId = standings[1]?.teamId || state.teams[1].id;
+      semi2.teamBId = standings[2]?.teamId || state.teams[2].id;
       semi2.innings = [
         createInitialInnings(semi2.teamAId, semi2.teamBId, state.teams),
         createInitialInnings(semi2.teamBId, semi2.teamAId, state.teams),
@@ -264,13 +298,17 @@ function ensurePlayoffsReady(state: TournamentState) {
   }
 
   if (finalMatch) {
-    if (!finalMatch.teamAId || !finalMatch.teamBId) {
-      finalMatch.teamAId = semi1?.teamAId || state.teams[0].id;
-      finalMatch.teamBId = semi2?.teamAId || state.teams[1].id;
-      finalMatch.innings = [
-        createInitialInnings(finalMatch.teamAId, finalMatch.teamBId, state.teams),
-        createInitialInnings(finalMatch.teamBId, finalMatch.teamAId, state.teams),
-      ];
+    if (semi1?.status === 'COMPLETED' && semi2?.status === 'COMPLETED') {
+      const semi1Winner = semi1.winnerId || (semi1.innings[0].totalRuns > semi1.innings[1].totalRuns ? semi1.teamAId : semi1.teamBId);
+      const semi2Winner = semi2.winnerId || (semi2.innings[0].totalRuns > semi2.innings[1].totalRuns ? semi2.teamAId : semi2.teamBId);
+      if (semi1Winner && semi2Winner) {
+        finalMatch.teamAId = semi1Winner;
+        finalMatch.teamBId = semi2Winner;
+        finalMatch.innings = [
+          createInitialInnings(finalMatch.teamAId, finalMatch.teamBId, state.teams),
+          createInitialInnings(finalMatch.teamBId, finalMatch.teamAId, state.teams),
+        ];
+      }
     }
     setupPlayoffLineup(finalMatch);
   }
@@ -327,16 +365,13 @@ export function recordBall(params: {
 
   const match = state.matches[matchIndex];
 
-  // Testing enabled: Semifinals & Finals can be scored ahead of league completion
-  // (Guard relaxed for testing before league)
-  /*
+  // Guard: Cannot score semifinals or finals before all league matches are finished
   if (match.stage === 'SEMI_FINAL' || match.stage === 'FINAL') {
     const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
     if (incompleteLeague.length > 0) {
-      throw new Error(`Cannot score semifinals! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first.`);
+      throw new Error(`Cannot score playoffs! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first (${incompleteLeague.length} remaining).`);
     }
   }
-  */
 
   const inn = match.innings[match.currentInningsIndex];
   if (inn.isCompleted) throw new Error('Innings is already completed');
@@ -875,15 +910,9 @@ export function resetAllMatches(params?: { wipeTeams?: boolean }) {
   const currentTeams = preserveTeams ? state.teams : INITIAL_TEAMS;
 
   const freshMatches = INITIAL_MATCHES.map(m => {
-    // Keep initial teams (including playoffs) so semifinals & finals can be tested immediately
-    const teamAId = m.teamAId;
-    const teamBId = m.teamBId;
     const isPlayoff = m.stage === 'SEMI_FINAL' || m.stage === 'FINAL';
-    const tA = currentTeams.find(t => t.id === teamAId);
-    const tB = currentTeams.find(t => t.id === teamBId);
-    const teamAPlaying8Ids = isPlayoff && tA ? tA.players.map(p => p.id) : undefined;
-    const teamBPlaying8Ids = isPlayoff && tB ? tB.players.map(p => p.id) : undefined;
-    const lineupSubmitted = isPlayoff;
+    const teamAId = isPlayoff ? '' : m.teamAId;
+    const teamBId = isPlayoff ? '' : m.teamBId;
     return {
       ...m,
       teamAId,
@@ -891,9 +920,9 @@ export function resetAllMatches(params?: { wipeTeams?: boolean }) {
       status: 'UPCOMING' as const,
       tossWinnerId: undefined,
       tossDecision: undefined,
-      lineupSubmitted,
-      teamAPlaying8Ids,
-      teamBPlaying8Ids,
+      lineupSubmitted: false,
+      teamAPlaying8Ids: undefined,
+      teamBPlaying8Ids: undefined,
       currentInningsIndex: 0 as (0 | 1),
       innings: [
         createInitialInnings(teamAId, teamBId, currentTeams),
@@ -943,11 +972,11 @@ export function setPlayoffTeams(params: {
 }) {
   const state = getTournamentState();
 
-  // Guard relaxed for testing: allows seeding & scoring playoff matches ahead of league completion
-  // const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
-  // if (incompleteLeague.length > 0) {
-  //   throw new Error(`Cannot finalize Semifinals! ${incompleteLeague.length} league matches are still remaining.`);
-  // }
+  // Guard: all league matches must be completed
+  const incompleteLeague = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
+  if (incompleteLeague.length > 0) {
+    throw new Error(`Cannot finalize Semifinals! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first (${incompleteLeague.length} remaining).`);
+  }
 
   const semi1 = state.matches.find(m => m.id === 'match-semi-1');
   const semi2 = state.matches.find(m => m.id === 'match-semi-2');
@@ -1008,16 +1037,13 @@ export function setMatchStatus(params: { matchId: string; status: MatchStatus })
   const match = state.matches.find(m => m.id === params.matchId);
   if (!match) throw new Error('Match not found');
 
-  // Testing enabled: allow setting Semifinals & Finals to LIVE ahead of league completion
-  // (Guard relaxed for testing before league)
-  /*
+  // Guard against starting semifinals if league matches are not done
   if ((match.stage === 'SEMI_FINAL' || match.stage === 'FINAL') && params.status === 'LIVE') {
     const incomplete = state.matches.filter(m => m.stage === 'LEAGUE' && m.status !== 'COMPLETED');
     if (incomplete.length > 0) {
-      throw new Error(`Cannot start Semifinals! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first.`);
+      throw new Error(`Cannot start Semifinals/Final! All ${state.matches.filter(m => m.stage === 'LEAGUE').length} league matches must be completed first (${incomplete.length} remaining).`);
     }
   }
-  */
 
   match.status = params.status;
   saveTournamentState(state);
