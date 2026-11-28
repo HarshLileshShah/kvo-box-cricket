@@ -32,15 +32,61 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches, isSupe
   const [leagueOnly, setLeagueOnly] = useState<boolean>(true);
   const [showRulesSheet, setShowRulesSheet] = useState<boolean>(false);
   const [selectedPlayerModal, setSelectedPlayerModal] = useState<PlayerPerformancePoints | null>(null);
+  const [viewerSortBy, setViewerSortBy] = useState<'RUNS' | 'WICKETS'>('RUNS');
 
   // Compute performance points according to official rules
   const { playerPoints, awards } = calculateTournamentPerformancePoints(teams, matches, { leagueOnly });
+
+  // Category Top Scorers & Top Wicket Takers (for viewers, avoiding confidential points leaks)
+  const getCategoryPerformers = (cat: PlayerCategory) => {
+    const list = playerPoints.filter(p => p.category === cat);
+
+    // Top Scorer (sort by runs desc, then sixes desc, then fours desc)
+    const topScorer = [...list].sort((a, b) => {
+      if (b.actualRunsScored !== a.actualRunsScored) return b.actualRunsScored - a.actualRunsScored;
+      if (b.sixesCount !== a.sixesCount) return b.sixesCount - a.sixesCount;
+      return b.foursCount - a.foursCount;
+    })[0] || null;
+
+    // Top Wicket Taker (sort by wickets desc, then dot balls desc, then fewer runs conceded)
+    const topWicketTaker = [...list].sort((a, b) => {
+      if (b.wicketsCount !== a.wicketsCount) return b.wicketsCount - a.wicketsCount;
+      if (b.dotBallsCount !== a.dotBallsCount) return b.dotBallsCount - a.dotBallsCount;
+      return a.runsConcededOffBat - b.runsConcededOffBat;
+    })[0] || null;
+
+    return { topScorer, topWicketTaker };
+  };
+
+  const malePerformers = getCategoryPerformers('REGULAR');
+  const femalePerformers = getCategoryPerformers('FEMALE');
+  const kidPerformers = getCategoryPerformers('KID');
+  const seniorPerformers = getCategoryPerformers('SENIOR');
 
   const filteredPoints = playerPoints.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.teamName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCat = filterCategory === 'ALL' || p.category === filterCategory;
     return matchesSearch && matchesCat;
+  });
+
+  // For Super Admin: sort by confidential points
+  // For Viewers: sort strictly by Runs or Wickets so points ranking is not exposed
+  const displayPlayers = [...filteredPoints].sort((a, b) => {
+    if (isSuperAdmin) {
+      return b.totalPoints - a.totalPoints;
+    }
+    if (viewerSortBy === 'RUNS') {
+      if (b.actualRunsScored !== a.actualRunsScored) return b.actualRunsScored - a.actualRunsScored;
+      if (b.sixesCount !== a.sixesCount) return b.sixesCount - a.sixesCount;
+      if (b.foursCount !== a.foursCount) return b.foursCount - a.foursCount;
+      return b.wicketsCount - a.wicketsCount;
+    } else {
+      if (b.wicketsCount !== a.wicketsCount) return b.wicketsCount - a.wicketsCount;
+      if (b.dotBallsCount !== a.dotBallsCount) return b.dotBallsCount - a.dotBallsCount;
+      if (b.actualRunsScored !== a.actualRunsScored) return b.actualRunsScored - a.actualRunsScored;
+      return a.runsConcededOffBat - b.runsConcededOffBat;
+    }
   });
 
   const getCategoryBadge = (cat: PlayerCategory) => {
@@ -103,263 +149,417 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches, isSupe
         </div>
       </div>
 
-      {/* 4 BEST PLAYER CATEGORY AWARDS (Male, Female, Kids, Senior) */}
+      {/* 4 CATEGORY LEADERS (For Viewers: Top Scorer & Top Wicket Taker / For Super Admin: Points Leaders) */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-black uppercase tracking-wider text-slate-300 flex items-center space-x-2">
             <Medal className="w-4 h-4 text-amber-400" />
-            <span>Best Player Leaders in All 4 Categories</span>
+            <span>
+              {isSuperAdmin
+                ? 'Best Player Leaders in All 4 Categories (Official Award Points)'
+                : 'Top Run Scorers & Wicket Takers in All 4 Categories'}
+            </span>
           </h3>
           <span className="text-[11px] text-slate-500 italic">
             {leagueOnly ? 'Scored across official 3 league matches' : 'Scored across all matches'}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 1. BEST MALE PLAYER */}
-          <div className="bg-gradient-to-br from-amber-950/50 via-slate-900 to-slate-900 border border-amber-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div>
-              <div className="flex items-center justify-between text-xs font-black uppercase text-amber-400 tracking-wider">
-                <span className="flex items-center space-x-1.5">
-                  <Trophy className="w-4 h-4 text-amber-400" />
-                  <span>Best Male Player</span>
-                </span>
-                <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
+        {isSuperAdmin ? (
+          /* SUPER ADMIN VIEW: Points-based Best Player Leaders */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. BEST MALE PLAYER */}
+            <div className="bg-gradient-to-br from-amber-950/50 via-slate-900 to-slate-900 border border-amber-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-amber-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <span>Best Male Player</span>
+                  </span>
+                  <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
+                </div>
+
+                <div className="mt-3.5">
+                  <h4 className="text-xl font-black text-white truncate">{awards.bestMale?.name || 'No Data'}</h4>
+                  <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
+                    <span>{awards.bestMale?.teamName || 'Team'}</span>
+                    <span>•</span>
+                    <span>{awards.bestMale?.matchesPlayed || 0} matches</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-3.5">
-                <h4 className="text-xl font-black text-white truncate">{awards.bestMale?.name || 'No Data'}</h4>
-                <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
-                  <span>{awards.bestMale?.teamName || 'Team'}</span>
-                  <span>•</span>
-                  <span>{awards.bestMale?.matchesPlayed || 0} matches</span>
+              <div className="mt-4 pt-3 border-t border-slate-800/80">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                  <span className="text-3xl font-black text-amber-400">{awards.bestMale?.totalPoints || 0}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bat: <span className="text-emerald-400">{awards.bestMale?.battingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bowl: <span className="text-purple-400">{awards.bestMale?.bowlingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Field: <span className="text-blue-400">{awards.bestMale?.fieldingPoints || 0}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-800/80">
-              {isSuperAdmin ? (
-                <>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                    <span className="text-3xl font-black text-amber-400">{awards.bestMale?.totalPoints || 0}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bat: <span className="text-emerald-400">{awards.bestMale?.battingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bowl: <span className="text-purple-400">{awards.bestMale?.bowlingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Field: <span className="text-blue-400">{awards.bestMale?.fieldingPoints || 0}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
-                      <span className="text-xl font-black text-emerald-400">{awards.bestMale?.actualRunsScored || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
-                      <span className="text-xl font-black text-purple-400">{awards.bestMale?.wicketsCount || 0}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-amber-400/80 text-center font-medium">
-                    🔒 Official Points: Super Admin Only
+            {/* 2. BEST FEMALE PLAYER */}
+            <div className="bg-gradient-to-br from-pink-950/50 via-slate-900 to-slate-900 border border-pink-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-pink-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Sparkles className="w-4 h-4 text-pink-400" />
+                    <span>Best Female Player</span>
+                  </span>
+                  <span className="bg-pink-500 text-white px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
+                </div>
+
+                <div className="mt-3.5">
+                  <h4 className="text-xl font-black text-white truncate">{awards.bestFemale?.name || 'No Data'}</h4>
+                  <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
+                    <span>{awards.bestFemale?.teamName || 'Team'}</span>
+                    <span>•</span>
+                    <span>{awards.bestFemale?.matchesPlayed || 0} matches</span>
                   </div>
                 </div>
-              )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                  <span className="text-3xl font-black text-pink-400">{awards.bestFemale?.totalPoints || 0}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bat: <span className="text-emerald-400">{awards.bestFemale?.battingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bowl: <span className="text-purple-400">{awards.bestFemale?.bowlingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Field: <span className="text-blue-400">{awards.bestFemale?.fieldingPoints || 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. BEST KID PLAYER */}
+            <div className="bg-gradient-to-br from-cyan-950/50 via-slate-900 to-slate-900 border border-cyan-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-cyan-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Shield className="w-4 h-4 text-cyan-400" />
+                    <span>Best Kid Player</span>
+                  </span>
+                  <span className="bg-cyan-500 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
+                </div>
+
+                <div className="mt-3.5">
+                  <h4 className="text-xl font-black text-white truncate">{awards.bestKid?.name || 'No Data'}</h4>
+                  <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
+                    <span>{awards.bestKid?.teamName || 'Team'}</span>
+                    <span>•</span>
+                    <span>{awards.bestKid?.matchesPlayed || 0} matches</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                  <span className="text-3xl font-black text-cyan-400">{awards.bestKid?.totalPoints || 0}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bat: <span className="text-emerald-400">{awards.bestKid?.battingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bowl: <span className="text-purple-400">{awards.bestKid?.bowlingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Field: <span className="text-blue-400">{awards.bestKid?.fieldingPoints || 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. BEST SENIOR PLAYER */}
+            <div className="bg-gradient-to-br from-purple-950/50 via-slate-900 to-slate-900 border border-purple-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-purple-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Award className="w-4 h-4 text-purple-400" />
+                    <span>Best Senior Player</span>
+                  </span>
+                  <span className="bg-purple-500 text-white px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
+                </div>
+
+                <div className="mt-3.5">
+                  <h4 className="text-xl font-black text-white truncate">{awards.bestSenior?.name || 'No Data'}</h4>
+                  <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
+                    <span>{awards.bestSenior?.teamName || 'Team'}</span>
+                    <span>•</span>
+                    <span>{awards.bestSenior?.matchesPlayed || 0} matches</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-slate-400 font-semibold">Total Points</span>
+                  <span className="text-3xl font-black text-purple-400">{awards.bestSenior?.totalPoints || 0}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bat: <span className="text-emerald-400">{awards.bestSenior?.battingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Bowl: <span className="text-purple-400">{awards.bestSenior?.bowlingPoints || 0}</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
+                    Field: <span className="text-blue-400">{awards.bestSenior?.fieldingPoints || 0}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        ) : (
+          /* VIEWER VIEW: Top Scorer & Top Wicket Taker in Each Category (NO points ranking revealed!) */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. MALE CATEGORY LEADERS */}
+            <div className="bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-amber-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <span>Male Category</span>
+                  </span>
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                    Category Leaders
+                  </span>
+                </div>
 
-          {/* 2. BEST FEMALE PLAYER */}
-          <div className="bg-gradient-to-br from-pink-950/50 via-slate-900 to-slate-900 border border-pink-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div>
-              <div className="flex items-center justify-between text-xs font-black uppercase text-pink-400 tracking-wider">
-                <span className="flex items-center space-x-1.5">
-                  <Sparkles className="w-4 h-4 text-pink-400" />
-                  <span>Best Female Player</span>
-                </span>
-                <span className="bg-pink-500 text-white px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
-              </div>
+                {/* Top Scorer Block */}
+                <div className="mt-3.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider flex items-center space-x-1">
+                      <span>🏏 Top Scorer</span>
+                    </span>
+                    <span className="text-base font-black text-emerald-400 font-mono">
+                      {malePerformers.topScorer?.actualRunsScored || 0} Runs
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {malePerformers.topScorer?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {malePerformers.topScorer?.teamName} • ({malePerformers.topScorer?.foursCount || 0}x4, {malePerformers.topScorer?.sixesCount || 0}x6)
+                    </span>
+                  </div>
+                </div>
 
-              <div className="mt-3.5">
-                <h4 className="text-xl font-black text-white truncate">{awards.bestFemale?.name || 'No Data'}</h4>
-                <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
-                  <span>{awards.bestFemale?.teamName || 'Team'}</span>
-                  <span>•</span>
-                  <span>{awards.bestFemale?.matchesPlayed || 0} matches</span>
+                {/* Top Wicket Taker Block */}
+                <div className="mt-2.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider flex items-center space-x-1">
+                      <span>⚾ Top Wicket Taker</span>
+                    </span>
+                    <span className="text-base font-black text-purple-300 font-mono">
+                      {malePerformers.topWicketTaker?.wicketsCount || 0} Wkts
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {malePerformers.topWicketTaker?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {malePerformers.topWicketTaker?.teamName} • ({malePerformers.topWicketTaker?.dotBallsCount || 0} dots)
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-800/80">
-              {isSuperAdmin ? (
-                <>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                    <span className="text-3xl font-black text-pink-400">{awards.bestFemale?.totalPoints || 0}</span>
+            {/* 2. FEMALE CATEGORY LEADERS */}
+            <div className="bg-gradient-to-br from-pink-950/40 via-slate-900 to-slate-900 border border-pink-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-pink-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Sparkles className="w-4 h-4 text-pink-400" />
+                    <span>Female Category</span>
+                  </span>
+                  <span className="bg-pink-500/20 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                    Category Leaders
+                  </span>
+                </div>
+
+                {/* Top Scorer Block */}
+                <div className="mt-3.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-pink-400 tracking-wider flex items-center space-x-1">
+                      <span>🏏 Top Scorer</span>
+                    </span>
+                    <span className="text-base font-black text-emerald-400 font-mono">
+                      {femalePerformers.topScorer?.actualRunsScored || 0} Runs
+                    </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bat: <span className="text-emerald-400">{awards.bestFemale?.battingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bowl: <span className="text-purple-400">{awards.bestFemale?.bowlingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Field: <span className="text-blue-400">{awards.bestFemale?.fieldingPoints || 0}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
-                      <span className="text-xl font-black text-pink-400">{awards.bestFemale?.actualRunsScored || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
-                      <span className="text-xl font-black text-purple-400">{awards.bestFemale?.wicketsCount || 0}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-pink-400/80 text-center font-medium">
-                    🔒 Official Points: Super Admin Only
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {femalePerformers.topScorer?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {femalePerformers.topScorer?.teamName} • ({femalePerformers.topScorer?.foursCount || 0}x4, {femalePerformers.topScorer?.sixesCount || 0}x6)
+                    </span>
                   </div>
                 </div>
-              )}
+
+                {/* Top Wicket Taker Block */}
+                <div className="mt-2.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider flex items-center space-x-1">
+                      <span>⚾ Top Wicket Taker</span>
+                    </span>
+                    <span className="text-base font-black text-purple-300 font-mono">
+                      {femalePerformers.topWicketTaker?.wicketsCount || 0} Wkts
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {femalePerformers.topWicketTaker?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {femalePerformers.topWicketTaker?.teamName} • ({femalePerformers.topWicketTaker?.dotBallsCount || 0} dots)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. KIDS CATEGORY LEADERS */}
+            <div className="bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900 border border-cyan-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-cyan-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Shield className="w-4 h-4 text-cyan-400" />
+                    <span>Kids Category</span>
+                  </span>
+                  <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                    Category Leaders
+                  </span>
+                </div>
+
+                {/* Top Scorer Block */}
+                <div className="mt-3.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-cyan-400 tracking-wider flex items-center space-x-1">
+                      <span>🏏 Top Scorer</span>
+                    </span>
+                    <span className="text-base font-black text-emerald-400 font-mono">
+                      {kidPerformers.topScorer?.actualRunsScored || 0} Runs
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {kidPerformers.topScorer?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {kidPerformers.topScorer?.teamName} • ({kidPerformers.topScorer?.foursCount || 0}x4, {kidPerformers.topScorer?.sixesCount || 0}x6)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Top Wicket Taker Block */}
+                <div className="mt-2.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider flex items-center space-x-1">
+                      <span>⚾ Top Wicket Taker</span>
+                    </span>
+                    <span className="text-base font-black text-purple-300 font-mono">
+                      {kidPerformers.topWicketTaker?.wicketsCount || 0} Wkts
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {kidPerformers.topWicketTaker?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {kidPerformers.topWicketTaker?.teamName} • ({kidPerformers.topWicketTaker?.dotBallsCount || 0} dots)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. SENIOR CATEGORY LEADERS */}
+            <div className="bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 border border-purple-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div>
+                <div className="flex items-center justify-between text-xs font-black uppercase text-purple-400 tracking-wider">
+                  <span className="flex items-center space-x-1.5">
+                    <Award className="w-4 h-4 text-purple-400" />
+                    <span>Senior Category</span>
+                  </span>
+                  <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                    Category Leaders
+                  </span>
+                </div>
+
+                {/* Top Scorer Block */}
+                <div className="mt-3.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center space-x-1">
+                      <span>🏏 Top Scorer</span>
+                    </span>
+                    <span className="text-base font-black text-emerald-400 font-mono">
+                      {seniorPerformers.topScorer?.actualRunsScored || 0} Runs
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {seniorPerformers.topScorer?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {seniorPerformers.topScorer?.teamName} • ({seniorPerformers.topScorer?.foursCount || 0}x4, {seniorPerformers.topScorer?.sixesCount || 0}x6)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Top Wicket Taker Block */}
+                <div className="mt-2.5 bg-slate-950/70 p-3 rounded-2xl border border-slate-800/90 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider flex items-center space-x-1">
+                      <span>⚾ Top Wicket Taker</span>
+                    </span>
+                    <span className="text-base font-black text-purple-300 font-mono">
+                      {seniorPerformers.topWicketTaker?.wicketsCount || 0} Wkts
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <h4 className="text-sm font-bold text-white truncate max-w-[130px]">
+                      {seniorPerformers.topWicketTaker?.name || 'No Data'}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 shrink-0">
+                      {seniorPerformers.topWicketTaker?.teamName} • ({seniorPerformers.topWicketTaker?.dotBallsCount || 0} dots)
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* 3. BEST KID PLAYER */}
-          <div className="bg-gradient-to-br from-cyan-950/50 via-slate-900 to-slate-900 border border-cyan-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div>
-              <div className="flex items-center justify-between text-xs font-black uppercase text-cyan-400 tracking-wider">
-                <span className="flex items-center space-x-1.5">
-                  <Shield className="w-4 h-4 text-cyan-400" />
-                  <span>Best Kid Player</span>
-                </span>
-                <span className="bg-cyan-500 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
-              </div>
-
-              <div className="mt-3.5">
-                <h4 className="text-xl font-black text-white truncate">{awards.bestKid?.name || 'No Data'}</h4>
-                <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
-                  <span>{awards.bestKid?.teamName || 'Team'}</span>
-                  <span>•</span>
-                  <span>{awards.bestKid?.matchesPlayed || 0} matches</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-800/80">
-              {isSuperAdmin ? (
-                <>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                    <span className="text-3xl font-black text-cyan-400">{awards.bestKid?.totalPoints || 0}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bat: <span className="text-emerald-400">{awards.bestKid?.battingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bowl: <span className="text-purple-400">{awards.bestKid?.bowlingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Field: <span className="text-blue-400">{awards.bestKid?.fieldingPoints || 0}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
-                      <span className="text-xl font-black text-cyan-400">{awards.bestKid?.actualRunsScored || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
-                      <span className="text-xl font-black text-purple-400">{awards.bestKid?.wicketsCount || 0}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-cyan-400/80 text-center font-medium">
-                    🔒 Official Points: Super Admin Only
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 4. BEST SENIOR PLAYER */}
-          <div className="bg-gradient-to-br from-purple-950/50 via-slate-900 to-slate-900 border border-purple-500/40 rounded-3xl p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div>
-              <div className="flex items-center justify-between text-xs font-black uppercase text-purple-400 tracking-wider">
-                <span className="flex items-center space-x-1.5">
-                  <Award className="w-4 h-4 text-purple-400" />
-                  <span>Best Senior Player</span>
-                </span>
-                <span className="bg-purple-500 text-white px-2 py-0.5 rounded-full font-black text-[10px]">Leader</span>
-              </div>
-
-              <div className="mt-3.5">
-                <h4 className="text-xl font-black text-white truncate">{awards.bestSenior?.name || 'No Data'}</h4>
-                <div className="flex items-center space-x-2 mt-0.5 text-xs text-slate-400">
-                  <span>{awards.bestSenior?.teamName || 'Team'}</span>
-                  <span>•</span>
-                  <span>{awards.bestSenior?.matchesPlayed || 0} matches</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-800/80">
-              {isSuperAdmin ? (
-                <>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-slate-400 font-semibold">Total Points</span>
-                    <span className="text-3xl font-black text-purple-400">{awards.bestSenior?.totalPoints || 0}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] text-center font-bold">
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bat: <span className="text-emerald-400">{awards.bestSenior?.battingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Bowl: <span className="text-purple-400">{awards.bestSenior?.bowlingPoints || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-1 rounded border border-slate-800 text-slate-300">
-                      Field: <span className="text-blue-400">{awards.bestSenior?.fieldingPoints || 0}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Runs Scored</span>
-                      <span className="text-xl font-black text-purple-400">{awards.bestSenior?.actualRunsScored || 0}</span>
-                    </div>
-                    <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Wickets Taken</span>
-                      <span className="text-xl font-black text-amber-400">{awards.bestSenior?.wicketsCount || 0}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-purple-400/80 text-center font-medium">
-                    🔒 Official Points: Super Admin Only
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Collapsible Rules & Points System Cheat Sheet */}
@@ -470,13 +670,49 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches, isSupe
 
       {/* Full Performance Leaderboard Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="text-xs font-bold text-white flex items-center space-x-2">
-            <span>Overall Performance Leaderboard ({filteredPoints.length} players)</span>
+            <span>
+              {isSuperAdmin
+                ? `Overall Performance Leaderboard (${displayPlayers.length} players - Ranked by Points)`
+                : viewerSortBy === 'RUNS'
+                ? `Top Run Scorers Leaderboard (${displayPlayers.length} players)`
+                : `Top Wicket Takers Leaderboard (${displayPlayers.length} players)`}
+            </span>
           </div>
-          <span className="text-[10px] text-slate-500">
-            {isSuperAdmin ? 'Click on any row to view full points breakdown' : 'Official match statistics'}
-          </span>
+
+          <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+            {!isSuperAdmin && (
+              <div className="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase px-1">Sort:</span>
+                <button
+                  type="button"
+                  onClick={() => setViewerSortBy('RUNS')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 ${
+                    viewerSortBy === 'RUNS'
+                      ? 'bg-emerald-500 text-slate-950 shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>🏏 Runs</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewerSortBy('WICKETS')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 ${
+                    viewerSortBy === 'WICKETS'
+                      ? 'bg-purple-500 text-white shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>⚾ Wickets</span>
+                </button>
+              </div>
+            )}
+            <span className="text-[10px] text-slate-500">
+              {isSuperAdmin ? 'Click on any row to view full points breakdown' : 'Official match statistics'}
+            </span>
+          </div>
         </div>
 
         {!isSuperAdmin && (
@@ -508,10 +744,30 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches, isSupe
                   <th className="p-3">Team</th>
                   <th className="p-3">Category</th>
                   <th className="p-3 text-right">M</th>
-                  <th className="p-3 text-right text-emerald-400">Runs</th>
+                  <th
+                    className={`p-3 text-right cursor-pointer hover:underline transition ${
+                      viewerSortBy === 'RUNS'
+                        ? 'text-emerald-400 font-black bg-emerald-500/10'
+                        : 'text-emerald-400'
+                    }`}
+                    onClick={() => setViewerSortBy('RUNS')}
+                    title="Click to sort by Runs Scored"
+                  >
+                    Runs {viewerSortBy === 'RUNS' && '▼'}
+                  </th>
                   <th className="p-3 text-right">4s</th>
                   <th className="p-3 text-right">6s</th>
-                  <th className="p-3 text-right text-purple-400">Wkts</th>
+                  <th
+                    className={`p-3 text-right cursor-pointer hover:underline transition ${
+                      viewerSortBy === 'WICKETS'
+                        ? 'text-purple-400 font-black bg-purple-500/10'
+                        : 'text-purple-400'
+                    }`}
+                    onClick={() => setViewerSortBy('WICKETS')}
+                    title="Click to sort by Wickets Taken"
+                  >
+                    Wkts {viewerSortBy === 'WICKETS' && '▼'}
+                  </th>
                   <th className="p-3 text-right">Dots</th>
                   <th className="p-3 text-right">Catches</th>
                   <th className="p-3 text-right">RO</th>
@@ -520,14 +776,14 @@ export const PlayerStats: React.FC<PlayerStatsProps> = ({ teams, matches, isSupe
               )}
             </thead>
             <tbody className="divide-y divide-slate-800/80 text-slate-200">
-              {filteredPoints.length === 0 ? (
+              {displayPlayers.length === 0 ? (
                 <tr>
                   <td colSpan={isSuperAdmin ? 10 : 13} className="p-8 text-center text-slate-500 text-xs">
                     No players found matching your criteria.
                   </td>
                 </tr>
               ) : (
-                filteredPoints.map((p, idx) => (
+                displayPlayers.map((p, idx) => (
                   <tr
                     key={p.playerId}
                     onClick={() => isSuperAdmin && setSelectedPlayerModal(p)}
