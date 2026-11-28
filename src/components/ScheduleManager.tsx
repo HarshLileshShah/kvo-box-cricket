@@ -502,7 +502,11 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
                         className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 text-xs transition"
                       >
                         <Users className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{m.lineupSubmitted ? 'Playing 8 ✓' : 'Playing 8'}</span>
+                        <span>
+                          {isPlayoff
+                            ? (m.lineupSubmitted ? 'Playing 9 ✓' : 'Playing 9 (All 9)')
+                            : (m.lineupSubmitted ? 'Playing 8 ✓' : 'Playing 8')}
+                        </span>
                       </button>
 
                       {m.status === 'UPCOMING' && (

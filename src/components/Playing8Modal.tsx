@@ -22,6 +22,9 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
   const teamA = teams.find(t => t.id === match.teamAId);
   const teamB = teams.find(t => t.id === match.teamBId);
 
+  const isPlayoff = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
+  const targetCount = isPlayoff ? 9 : 8;
+
   const [teamASelectedIds, setTeamASelectedIds] = useState<string[]>([]);
   const [teamBSelectedIds, setTeamBSelectedIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,16 +35,16 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
       if (match.teamAPlaying8Ids && match.teamAPlaying8Ids.length > 0) {
         setTeamASelectedIds(match.teamAPlaying8Ids);
       } else if (teamA) {
-        setTeamASelectedIds(teamA.players.slice(0, 8).map(p => p.id));
+        setTeamASelectedIds(isPlayoff ? teamA.players.map(p => p.id) : teamA.players.slice(0, 8).map(p => p.id));
       }
 
       if (match.teamBPlaying8Ids && match.teamBPlaying8Ids.length > 0) {
         setTeamBSelectedIds(match.teamBPlaying8Ids);
       } else if (teamB) {
-        setTeamBSelectedIds(teamB.players.slice(0, 8).map(p => p.id));
+        setTeamBSelectedIds(isPlayoff ? teamB.players.map(p => p.id) : teamB.players.slice(0, 8).map(p => p.id));
       }
     }
-  }, [isOpen]);
+  }, [isOpen, isPlayoff]);
 
   if (!isOpen || !teamA || !teamB) return null;
 
@@ -50,8 +53,8 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
       if (teamASelectedIds.includes(playerId)) {
         setTeamASelectedIds(teamASelectedIds.filter(id => id !== playerId));
       } else {
-        if (teamASelectedIds.length >= 8) {
-          alert('Maximum 8 playing players can be selected.');
+        if (teamASelectedIds.length >= targetCount) {
+          alert(`Maximum ${targetCount} playing players can be selected.`);
           return;
         }
         setTeamASelectedIds([...teamASelectedIds, playerId]);
@@ -60,8 +63,8 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
       if (teamBSelectedIds.includes(playerId)) {
         setTeamBSelectedIds(teamBSelectedIds.filter(id => id !== playerId));
       } else {
-        if (teamBSelectedIds.length >= 8) {
-          alert('Maximum 8 playing players can be selected.');
+        if (teamBSelectedIds.length >= targetCount) {
+          alert(`Maximum ${targetCount} playing players can be selected.`);
           return;
         }
         setTeamBSelectedIds([...teamBSelectedIds, playerId]);
@@ -77,7 +80,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
     const count = selectedPlayers.length;
 
     const hasSenior = team.players.some(p => p.category === 'SENIOR');
-    const isCountValid = count === 8;
+    const isCountValid = count === targetCount;
     const isFemaleValid = females >= 2;
     const isSeniorValid = hasSenior ? seniors >= 1 : true;
     const isKidValid = kids >= 1;
@@ -98,7 +101,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
 
   const handleSubmit = async () => {
     if (!isAllValid) {
-      alert('Both teams must submit exactly 8 players meeting the compulsory rules (min 2 females and 1 kid).');
+      alert(`Both teams must submit exactly ${targetCount} players meeting the compulsory rules (min 2 females and 1 kid).`);
       return;
     }
 
@@ -109,7 +112,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
         teamAPlaying8Ids: teamASelectedIds,
         teamBPlaying8Ids: teamBSelectedIds,
       });
-      alert('Playing 8 submitted successfully for both teams!');
+      alert(isPlayoff ? 'Playing 9 (all 9 players) submitted successfully for both teams!' : 'Playing 8 submitted successfully for both teams!');
       onClose();
     } catch (err: any) {
       alert(`Error submitting lineup: ${err.message}`);
@@ -139,9 +142,13 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white">Pre-Match Playing 8 Submission</h3>
+            <h3 className="text-xl font-black text-white">
+              {isPlayoff ? 'Pre-Match Playing 9 Submission (All 9 Players)' : 'Pre-Match Playing 8 Submission'}
+            </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Each team must submit their <strong>8 playing players</strong> before the match starts.
+              {isPlayoff
+                ? 'In Semi-Finals and Finals, all 9 squad members play (9-over match, every player bowls 1 over).'
+                : 'Each team must submit their 8 playing players before the match starts.'}
             </p>
           </div>
         </div>
@@ -158,7 +165,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
           >
             <span>{teamA.name}</span>
             <span className={`px-2 py-0.5 rounded text-[11px] font-mono ${valA.isValid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-              {valA.count} / 8 {valA.isValid ? '✓' : ''}
+              {valA.count} / {targetCount} {valA.isValid ? '✓' : ''}
             </span>
           </button>
 
@@ -172,7 +179,7 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
           >
             <span>{teamB.name}</span>
             <span className={`px-2 py-0.5 rounded text-[11px] font-mono ${valB.isValid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-              {valB.count} / 8 {valB.isValid ? '✓' : ''}
+              {valB.count} / {targetCount} {valB.isValid ? '✓' : ''}
             </span>
           </button>
         </div>
@@ -180,8 +187,8 @@ export const Playing8Modal: React.FC<Playing8ModalProps> = ({
         {/* Requirements Status for Active Tab */}
         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 my-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-3">
-            <span className={currentVal.count === 8 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-              • 8 Players: {currentVal.count}/8
+            <span className={currentVal.count === targetCount ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+              • {targetCount} Players: {currentVal.count}/{targetCount}
             </span>
             <span className={currentVal.females >= 2 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
               • Females: {currentVal.females}/2 min

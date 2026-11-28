@@ -226,29 +226,53 @@ function ensurePlayoffsReady(state: TournamentState) {
   const semi2 = state.matches.find(m => m.id === 'match-semi-2');
   const finalMatch = state.matches.find(m => m.id === 'match-final');
 
-  if (semi1 && (!semi1.teamAId || !semi1.teamBId)) {
-    semi1.teamAId = state.teams[0].id;
-    semi1.teamBId = state.teams[3].id;
-    semi1.innings = [
-      createInitialInnings(semi1.teamAId, semi1.teamBId, state.teams),
-      createInitialInnings(semi1.teamBId, semi1.teamAId, state.teams),
-    ];
+  const setupPlayoffLineup = (m?: Match) => {
+    if (!m) return;
+    const tA = state.teams.find(t => t.id === m.teamAId);
+    const tB = state.teams.find(t => t.id === m.teamBId);
+    if (tA && (!m.teamAPlaying8Ids || m.teamAPlaying8Ids.length < 9)) {
+      m.teamAPlaying8Ids = tA.players.map(p => p.id);
+    }
+    if (tB && (!m.teamBPlaying8Ids || m.teamBPlaying8Ids.length < 9)) {
+      m.teamBPlaying8Ids = tB.players.map(p => p.id);
+    }
+    m.lineupSubmitted = true;
+  };
+
+  if (semi1) {
+    if (!semi1.teamAId || !semi1.teamBId) {
+      semi1.teamAId = state.teams[0].id;
+      semi1.teamBId = state.teams[3].id;
+      semi1.innings = [
+        createInitialInnings(semi1.teamAId, semi1.teamBId, state.teams),
+        createInitialInnings(semi1.teamBId, semi1.teamAId, state.teams),
+      ];
+    }
+    setupPlayoffLineup(semi1);
   }
-  if (semi2 && (!semi2.teamAId || !semi2.teamBId)) {
-    semi2.teamAId = state.teams[1].id;
-    semi2.teamBId = state.teams[2].id;
-    semi2.innings = [
-      createInitialInnings(semi2.teamAId, semi2.teamBId, state.teams),
-      createInitialInnings(semi2.teamBId, semi2.teamAId, state.teams),
-    ];
+
+  if (semi2) {
+    if (!semi2.teamAId || !semi2.teamBId) {
+      semi2.teamAId = state.teams[1].id;
+      semi2.teamBId = state.teams[2].id;
+      semi2.innings = [
+        createInitialInnings(semi2.teamAId, semi2.teamBId, state.teams),
+        createInitialInnings(semi2.teamBId, semi2.teamAId, state.teams),
+      ];
+    }
+    setupPlayoffLineup(semi2);
   }
-  if (finalMatch && (!finalMatch.teamAId || !finalMatch.teamBId)) {
-    finalMatch.teamAId = semi1?.teamAId || state.teams[0].id;
-    finalMatch.teamBId = semi2?.teamAId || state.teams[1].id;
-    finalMatch.innings = [
-      createInitialInnings(finalMatch.teamAId, finalMatch.teamBId, state.teams),
-      createInitialInnings(finalMatch.teamBId, finalMatch.teamAId, state.teams),
-    ];
+
+  if (finalMatch) {
+    if (!finalMatch.teamAId || !finalMatch.teamBId) {
+      finalMatch.teamAId = semi1?.teamAId || state.teams[0].id;
+      finalMatch.teamBId = semi2?.teamAId || state.teams[1].id;
+      finalMatch.innings = [
+        createInitialInnings(finalMatch.teamAId, finalMatch.teamBId, state.teams),
+        createInitialInnings(finalMatch.teamBId, finalMatch.teamAId, state.teams),
+      ];
+    }
+    setupPlayoffLineup(finalMatch);
   }
 }
 
@@ -854,6 +878,12 @@ export function resetAllMatches(params?: { wipeTeams?: boolean }) {
     // Keep initial teams (including playoffs) so semifinals & finals can be tested immediately
     const teamAId = m.teamAId;
     const teamBId = m.teamBId;
+    const isPlayoff = m.stage === 'SEMI_FINAL' || m.stage === 'FINAL';
+    const tA = currentTeams.find(t => t.id === teamAId);
+    const tB = currentTeams.find(t => t.id === teamBId);
+    const teamAPlaying8Ids = isPlayoff && tA ? tA.players.map(p => p.id) : undefined;
+    const teamBPlaying8Ids = isPlayoff && tB ? tB.players.map(p => p.id) : undefined;
+    const lineupSubmitted = isPlayoff;
     return {
       ...m,
       teamAId,
@@ -861,9 +891,9 @@ export function resetAllMatches(params?: { wipeTeams?: boolean }) {
       status: 'UPCOMING' as const,
       tossWinnerId: undefined,
       tossDecision: undefined,
-      lineupSubmitted: false,
-      teamAPlaying8Ids: undefined,
-      teamBPlaying8Ids: undefined,
+      lineupSubmitted,
+      teamAPlaying8Ids,
+      teamBPlaying8Ids,
       currentInningsIndex: 0 as (0 | 1),
       innings: [
         createInitialInnings(teamAId, teamBId, currentTeams),
@@ -926,6 +956,11 @@ export function setPlayoffTeams(params: {
   if (semi1) {
     semi1.teamAId = params.semi1TeamAId;
     semi1.teamBId = params.semi1TeamBId;
+    const tA = state.teams.find(t => t.id === params.semi1TeamAId);
+    const tB = state.teams.find(t => t.id === params.semi1TeamBId);
+    if (tA) semi1.teamAPlaying8Ids = tA.players.map(p => p.id);
+    if (tB) semi1.teamBPlaying8Ids = tB.players.map(p => p.id);
+    semi1.lineupSubmitted = true;
     semi1.innings = [
       createInitialInnings(params.semi1TeamAId, params.semi1TeamBId, state.teams),
       createInitialInnings(params.semi1TeamBId, params.semi1TeamAId, state.teams),
@@ -935,6 +970,11 @@ export function setPlayoffTeams(params: {
   if (semi2) {
     semi2.teamAId = params.semi2TeamAId;
     semi2.teamBId = params.semi2TeamBId;
+    const tA = state.teams.find(t => t.id === params.semi2TeamAId);
+    const tB = state.teams.find(t => t.id === params.semi2TeamBId);
+    if (tA) semi2.teamAPlaying8Ids = tA.players.map(p => p.id);
+    if (tB) semi2.teamBPlaying8Ids = tB.players.map(p => p.id);
+    semi2.lineupSubmitted = true;
     semi2.innings = [
       createInitialInnings(params.semi2TeamAId, params.semi2TeamBId, state.teams),
       createInitialInnings(params.semi2TeamBId, params.semi2TeamAId, state.teams),
@@ -944,6 +984,11 @@ export function setPlayoffTeams(params: {
   if (finalMatch && params.finalTeamAId && params.finalTeamBId) {
     finalMatch.teamAId = params.finalTeamAId;
     finalMatch.teamBId = params.finalTeamBId;
+    const tA = state.teams.find(t => t.id === params.finalTeamAId);
+    const tB = state.teams.find(t => t.id === params.finalTeamBId);
+    if (tA) finalMatch.teamAPlaying8Ids = tA.players.map(p => p.id);
+    if (tB) finalMatch.teamBPlaying8Ids = tB.players.map(p => p.id);
+    finalMatch.lineupSubmitted = true;
     finalMatch.innings = [
       createInitialInnings(params.finalTeamAId, params.finalTeamBId, state.teams),
       createInitialInnings(params.finalTeamBId, params.finalTeamAId, state.teams),

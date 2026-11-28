@@ -160,16 +160,23 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
     return false;
   };
 
+  const isSemiOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
+
   const battingPlayingIds = currentInnings.battingTeamId === match.teamAId ? match.teamAPlaying8Ids : match.teamBPlaying8Ids;
   const bowlingPlayingIds = currentInnings.bowlingTeamId === match.teamAId ? match.teamAPlaying8Ids : match.teamBPlaying8Ids;
 
-  const eligibleBatters = (battingPlayingIds && battingPlayingIds.length >= 2)
-    ? (battingTeam?.players.filter(p => battingPlayingIds.includes(p.id)) || battingTeam?.players || [])
-    : (battingTeam?.players || []);
+  // In Semi-Finals and Finals, all 9 squad members play
+  const eligibleBatters = isSemiOrFinal
+    ? (battingTeam?.players || [])
+    : (battingPlayingIds && battingPlayingIds.length >= 2)
+      ? (battingTeam?.players.filter(p => battingPlayingIds.includes(p.id)) || battingTeam?.players || [])
+      : (battingTeam?.players || []);
 
-  const eligibleBowlers = (bowlingPlayingIds && bowlingPlayingIds.length >= 1)
-    ? (bowlingTeam?.players.filter(p => bowlingPlayingIds.includes(p.id)) || bowlingTeam?.players || [])
-    : (bowlingTeam?.players || []);
+  const eligibleBowlers = isSemiOrFinal
+    ? (bowlingTeam?.players || [])
+    : (bowlingPlayingIds && bowlingPlayingIds.length >= 1)
+      ? (bowlingTeam?.players.filter(p => bowlingPlayingIds.includes(p.id)) || bowlingTeam?.players || [])
+      : (bowlingTeam?.players || []);
 
   const striker = battingTeam?.players.find(p => p.id === currentInnings.currentPair.strikerId);
   const nonStriker = battingTeam?.players.find(p => p.id === currentInnings.currentPair.nonStrikerId);
@@ -177,7 +184,6 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
   const currentOverNumber = currentInnings.completedOvers + 1;
   const isPowerOver = currentInnings.powerOverDeclaredNumber === currentOverNumber;
-  const isSemiOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
   const isOver5SemiFinal = isSemiOrFinal && currentOverNumber === 5;
 
   // Senior Citizen Players for Over 5 Auto-Handle in Semi/Final
@@ -1059,7 +1065,9 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30 transition"
             >
               <Users className="w-3.5 h-3.5 text-amber-400" />
-              <span>Playing 8 ({match.lineupSubmitted ? 'Locked' : 'Select'})</span>
+              <span>
+                {isSemiOrFinal ? 'Playing 9' : 'Playing 8'} ({match.lineupSubmitted ? 'Locked' : 'Select'})
+              </span>
             </button>
           )}
 
