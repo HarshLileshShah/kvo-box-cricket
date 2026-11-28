@@ -33,7 +33,8 @@ import {
   Lock,
   X,
   ShieldAlert,
-  Clock
+  Clock,
+  Award
 } from 'lucide-react';
 
 interface ScorerConsoleProps {
@@ -177,6 +178,11 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const currentOverNumber = currentInnings.completedOvers + 1;
   const isPowerOver = currentInnings.powerOverDeclaredNumber === currentOverNumber;
   const isSemiOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
+  const isOver5SemiFinal = isSemiOrFinal && currentOverNumber === 5;
+
+  // Senior Citizen Players for Over 5 Auto-Handle in Semi/Final
+  const seniorBatter = (eligibleBatters.find(p => p.category === 'SENIOR')) || battingTeam?.players.find(p => p.category === 'SENIOR');
+  const seniorBowler = (eligibleBowlers.find(p => p.category === 'SENIOR')) || bowlingTeam?.players.find(p => p.category === 'SENIOR');
 
   // Stats for senior / junior compliance
   const seniorPlayer = battingTeam?.players.find(p => p.category === 'SENIOR');
@@ -200,6 +206,20 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   });
 
   const strikerCategory = striker?.category || 'REGULAR';
+
+  // Auto-set Over 5 Senior Bowler and Solo Senior Batter in Semi/Finals
+  useEffect(() => {
+    if (isOver5SemiFinal && !currentInnings.isCompleted && seniorBatter && seniorBowler) {
+      if (currentInnings.currentBowlerId !== seniorBowler.id || currentInnings.currentPair.strikerId !== seniorBatter.id) {
+        onUpdateParticipants({
+          matchId: match.id,
+          strikerId: seniorBatter.id,
+          nonStrikerId: seniorBatter.id,
+          bowlerId: seniorBowler.id,
+        }).catch(() => {});
+      }
+    }
+  }, [isOver5SemiFinal, currentInnings.currentBowlerId, currentInnings.currentPair.strikerId, seniorBatter?.id, seniorBowler?.id, currentInnings.isCompleted, match.id]);
 
   // Bowler past overs tracking (Rule 10: 1 over per bowler max)
   const bowledBowlerIds = new Set<string>();
@@ -232,23 +252,30 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   const isOverBoundary = currentInnings.completedOvers > 0 && currentInnings.currentOverBalls === 0;
 
   // Check if current bowler needs to change (must not be same as previous bowler, and must not have bowled before)
+  // In Semi/Final Over 5, bowler is auto-handled to Senior Bowler, so do not pop up generic over-up modal!
   const bowlerHasAlreadyBowled = !!currentInnings.currentBowlerId && bowledBowlerIds.has(currentInnings.currentBowlerId);
   const bowlerIsSameAsPrev = !!currentInnings.currentBowlerId && currentInnings.currentBowlerId === prevBowlerId;
-  const needsBowlerChange = isOverBoundary && (!currentInnings.currentBowlerId || bowlerHasAlreadyBowled || bowlerIsSameAsPrev);
+  const needsBowlerChange = isOverBoundary && !isOver5SemiFinal && (!currentInnings.currentBowlerId || bowlerHasAlreadyBowled || bowlerIsSameAsPrev);
 
-  // Batting pairs 2-over cycle check (Rule 4: Overs 1-2 = Pair 1, 3-4 = Pair 2, 5-6 = Pair 3, 7-8 = Pair 4)
-  // When completedOvers is 2, 4, or 6 and currentOverBalls === 0, pair change is mandatory!
-  const isPairBoundary = (currentInnings.completedOvers === 2 || currentInnings.completedOvers === 4 || currentInnings.completedOvers === 6) && currentInnings.currentOverBalls === 0;
+  // Batting pairs cycle check:
+  // In League: Overs 1-2 (Pair 1), 3-4 (Pair 2), 5-6 (Pair 3), 7-8 (Pair 4) -> boundaries at 2, 4, 6 overs.
+  // In Semi/Finals: Overs 1-2 (Pair 1), 3-4 (Pair 2), Over 5 (Senior Solo), Overs 6-7 (Pair 3), Overs 8-9 (Pair 4)
+  // -> boundaries at completedOvers: 2, 5 (after senior solo finishes), and 7.
+  const isPairBoundary = isSemiOrFinal
+    ? ((currentInnings.completedOvers === 2 || currentInnings.completedOvers === 5 || currentInnings.completedOvers === 7) && currentInnings.currentOverBalls === 0)
+    : ((currentInnings.completedOvers === 2 || currentInnings.completedOvers === 4 || currentInnings.completedOvers === 6) && currentInnings.currentOverBalls === 0);
   
-  // Find batters who batted in the preceding 2 overs
-  const prev2Overs = [currentInnings.completedOvers - 1, currentInnings.completedOvers];
-  const prev2OversBalls = currentInnings.balls.filter(b => prev2Overs.includes(b.overNumber));
+  // Find batters who batted in preceding overs
+  const prevOversToCheck = (isSemiOrFinal && currentInnings.completedOvers === 5)
+    ? [3, 4, 5]
+    : [currentInnings.completedOvers - 1, currentInnings.completedOvers];
+  const prevOversBalls = currentInnings.balls.filter(b => prevOversToCheck.includes(b.overNumber));
   const prevPairBatterIds = new Set<string>();
-  for (const b of prev2OversBalls) {
+  for (const b of prevOversBalls) {
     if (b.batsmanId) prevPairBatterIds.add(b.batsmanId);
     if (b.nonStrikerId) prevPairBatterIds.add(b.nonStrikerId);
   }
-  const needsPairChange = isPairBoundary && (
+  const needsPairChange = isPairBoundary && !isOver5SemiFinal && (
     prevPairBatterIds.has(currentInnings.currentPair.strikerId) ||
     prevPairBatterIds.has(currentInnings.currentPair.nonStrikerId)
   );
@@ -301,6 +328,18 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
 
   const handleBallClick = async (outcomeType: BallOutcomeType) => {
     if (isSubmitting || currentInnings.isCompleted) return;
+
+    // Semi/Final Over 5 Auto-Handle: Over 5 must be bowled by Senior and faced solo by opposing Senior
+    if (isOver5SemiFinal && seniorBatter && seniorBowler) {
+      if (currentInnings.currentBowlerId !== seniorBowler.id || currentInnings.currentPair.strikerId !== seniorBatter.id) {
+        await onUpdateParticipants({
+          matchId: match.id,
+          strikerId: seniorBatter.id,
+          nonStrikerId: seniorBatter.id,
+          bowlerId: seniorBowler.id,
+        });
+      }
+    }
 
     // Rule 1: Mandate Power Over declaration before ball 1 of the innings
     if (needsPowerOverDeclaration) {
@@ -594,6 +633,10 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
   };
 
   const handleSwapStrike = async () => {
+    if (isOver5SemiFinal) {
+      alert("⚠️ Semi/Final Rule: Over 5 is faced solo by the opposing Senior Citizen player. Strike cannot be swapped.");
+      return;
+    }
     if (!striker || !nonStriker) return;
     await onUpdateParticipants({
       matchId: match.id,
@@ -894,27 +937,43 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
         </div>
 
         {/* Non-Striker Card */}
-        <div className="bg-slate-900 border border-slate-700/80 rounded-xl p-4 shadow-lg relative">
+        <div className={`bg-slate-900 border rounded-xl p-4 shadow-lg relative ${isOver5SemiFinal ? 'border-amber-500/50 bg-amber-950/20' : 'border-slate-700/80'}`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">NON-STRIKER</span>
-            {getCategoryBadge(nonStriker?.category)}
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              {isOver5SemiFinal ? 'SOLO BATSMAN' : 'NON-STRIKER'}
+            </span>
+            {isOver5SemiFinal ? (
+              <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full uppercase">
+                Solo Over 5
+              </span>
+            ) : (
+              getCategoryBadge(nonStriker?.category)
+            )}
           </div>
           <div className="mt-2">
-            <h3 className="text-lg font-bold text-white truncate">{nonStriker?.name || 'Select Non-Striker'}</h3>
-            {nonStriker && currentInnings.batsmanStats[nonStriker.id] && (
-              <div className="text-xs text-slate-300 mt-1 flex items-center space-x-3">
-                <span className="font-bold text-slate-200 text-sm">
-                  {currentInnings.batsmanStats[nonStriker.id].runs}
-                </span>
-                <span className="text-slate-400">
-                  ({currentInnings.batsmanStats[nonStriker.id].ballsFaced} balls, {currentInnings.batsmanStats[nonStriker.id].fours}x4, {currentInnings.batsmanStats[nonStriker.id].sixes}x6)
-                </span>
-                {currentInnings.batsmanStats[nonStriker.id].dismissalsCount > 0 && (
-                  <span className="text-rose-400 font-semibold text-[11px]">
-                    {currentInnings.batsmanStats[nonStriker.id].dismissalsCount} out
+            <h3 className="text-lg font-bold text-white truncate">
+              {isOver5SemiFinal ? 'Facing Solo (No Non-Striker)' : (nonStriker?.name || 'Select Non-Striker')}
+            </h3>
+            {isOver5SemiFinal ? (
+              <p className="text-xs text-amber-300/80 mt-1">
+                Senior Citizen faces all 6 deliveries. No strike rotation active.
+              </p>
+            ) : (
+              nonStriker && currentInnings.batsmanStats[nonStriker.id] && (
+                <div className="text-xs text-slate-300 mt-1 flex items-center space-x-3">
+                  <span className="font-bold text-slate-200 text-sm">
+                    {currentInnings.batsmanStats[nonStriker.id].runs}
                   </span>
-                )}
-              </div>
+                  <span className="text-slate-400">
+                    ({currentInnings.batsmanStats[nonStriker.id].ballsFaced} balls, {currentInnings.batsmanStats[nonStriker.id].fours}x4, {currentInnings.batsmanStats[nonStriker.id].sixes}x6)
+                  </span>
+                  {currentInnings.batsmanStats[nonStriker.id].dismissalsCount > 0 && (
+                    <span className="text-rose-400 font-semibold text-[11px]">
+                      {currentInnings.batsmanStats[nonStriker.id].dismissalsCount} out
+                    </span>
+                  )}
+                </div>
+              )
             )}
           </div>
         </div>
@@ -1097,6 +1156,41 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
           </p>
           <div className="pt-1 text-xs text-slate-400 font-medium">
             Please finish the remaining league matches in the Schedule tab first.
+          </div>
+        </div>
+      )}
+
+      {/* Semi/Final Over 5 Senior Solo Clash Banner */}
+      {isOver5SemiFinal && (
+        <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center space-x-2 text-amber-400 font-black text-xs sm:text-sm uppercase tracking-wider">
+              <Award className="w-5 h-5 text-amber-400" />
+              <span>Semi/Final Rule: Over 5 Senior Citizen Solo Clash (Auto-Handled)</span>
+            </span>
+            <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase shadow">
+              Auto Handled
+            </span>
+          </div>
+          <p className="text-xs text-slate-300">
+            Per official tournament regulations: <strong>Over 5 must be bowled by the Senior Citizen player</strong>, and <strong>must be faced solo by the opposing Senior Citizen player</strong>. Strike does not rotate.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/40 space-y-0.5">
+              <div className="text-[10px] text-amber-400 font-black uppercase flex items-center space-x-1">
+                <span>🏏 Solo Batsman ({battingTeam?.shortName || battingTeam?.name})</span>
+              </div>
+              <div className="text-white font-bold text-sm truncate">{seniorBatter?.name || 'Senior Citizen'}</div>
+              <div className="text-[11px] text-slate-400">Faces all 6 deliveries • Boundary bonus: 4+1=5, 6+2=8</div>
+            </div>
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/40 space-y-0.5">
+              <div className="text-[10px] text-emerald-400 font-black uppercase flex items-center space-x-1">
+                <Zap className="w-3 h-3 text-emerald-400" />
+                <span>⚾ Mandatory Bowler ({bowlingTeam?.shortName || bowlingTeam?.name})</span>
+              </div>
+              <div className="text-white font-bold text-sm truncate">{seniorBowler?.name || 'Senior Citizen'}</div>
+              <div className="text-[11px] text-slate-400">Over 5 designated bowler • Max 1 over limit</div>
+            </div>
           </div>
         </div>
       )}
@@ -2458,23 +2552,31 @@ export const ScorerConsole: React.FC<ScorerConsoleProps> = ({
                 Select Power Over (Batting Team: {battingTeam?.name})
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {[3, 4, 5, 6, 7, 8].map((ov) => (
-                  <button
-                    key={ov}
-                    type="button"
-                    onClick={() => setSelectedPowerOverNum(ov)}
-                    className={`py-3 px-2 rounded-xl border text-center transition ${
-                      selectedPowerOverNum === ov
-                        ? 'bg-purple-600 border-purple-400 text-white font-black shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/50'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 font-bold'
-                    }`}
-                  >
-                    <span className="block text-sm">Over {ov}</span>
-                    {isSemiOrFinal && ov === 5 && (
-                      <span className="text-[9px] text-amber-300 block">Solo Senior</span>
-                    )}
-                  </button>
-                ))}
+                {[3, 4, 5, 6, 7, 8].map((ov) => {
+                  const isRestrictedInSemi = isSemiOrFinal && ov === 5;
+                  return (
+                    <button
+                      key={ov}
+                      type="button"
+                      disabled={isRestrictedInSemi}
+                      onClick={() => !isRestrictedInSemi && setSelectedPowerOverNum(ov)}
+                      className={`py-3 px-2 rounded-xl border text-center transition ${
+                        isRestrictedInSemi
+                          ? 'bg-slate-900/60 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                          : selectedPowerOverNum === ov
+                          ? 'bg-purple-600 border-purple-400 text-white font-black shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/50'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 font-bold'
+                      }`}
+                    >
+                      <span className="block text-sm">Over {ov}</span>
+                      {isRestrictedInSemi ? (
+                        <span className="text-[9px] text-rose-400 block font-bold">Restricted (Solo)</span>
+                      ) : isSemiOrFinal && ov === 5 ? (
+                        <span className="text-[9px] text-amber-300 block">Solo Senior</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

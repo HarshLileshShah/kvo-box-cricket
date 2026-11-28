@@ -344,6 +344,31 @@ export function recordBall(params: {
 
   const currentOverNumber = inn.completedOvers + 1;
   const isPowerOver = inn.powerOverDeclaredNumber === currentOverNumber;
+  const isSemiOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
+  const isSemiFinalOrFinalOver5 = isSemiOrFinal && currentOverNumber === 5;
+
+  // Auto-handle Semi/Final Over 5 Senior Solo Mandate:
+  // Semi/Final Rule: Over 5 must be bowled by the Senior Citizen player.
+  // Semi/Final Rule: Over 5 must be faced solo by the opposing Senior Citizen player.
+  if (isSemiFinalOrFinalOver5) {
+    const batPlayingIds = inn.battingTeamId === match.teamAId ? match.teamAPlaying8Ids : match.teamBPlaying8Ids;
+    const seniorBatter = (batPlayingIds && batPlayingIds.length > 0
+      ? battingTeam?.players.filter(p => batPlayingIds.includes(p.id))
+      : battingTeam?.players)?.find(p => p.category === 'SENIOR') || battingTeam?.players.find(p => p.category === 'SENIOR');
+
+    const bowlPlayingIds = inn.bowlingTeamId === match.teamAId ? match.teamAPlaying8Ids : match.teamBPlaying8Ids;
+    const seniorBowler = (bowlPlayingIds && bowlPlayingIds.length > 0
+      ? bowlingTeam?.players.filter(p => bowlPlayingIds.includes(p.id))
+      : bowlingTeam?.players)?.find(p => p.category === 'SENIOR') || bowlingTeam?.players.find(p => p.category === 'SENIOR');
+
+    if (seniorBatter) {
+      inn.currentPair.strikerId = seniorBatter.id;
+      inn.currentPair.nonStrikerId = seniorBatter.id;
+    }
+    if (seniorBowler) {
+      inn.currentBowlerId = seniorBowler.id;
+    }
+  }
 
   const striker = battingTeam?.players.find(p => p.id === inn.currentPair.strikerId);
   const nonStriker = battingTeam?.players.find(p => p.id === inn.currentPair.nonStrikerId);
@@ -487,7 +512,8 @@ export function recordBall(params: {
   if (calc.isLegalDelivery) {
     inn.currentOverBalls += 1;
 
-    if (calc.rawRuns === 1 || calc.rawRuns === 3) {
+    // Strike rotation on odd runs (Disabled in Semi/Final Over 5: Senior faces solo!)
+    if (!isSemiFinalOrFinalOver5 && (calc.rawRuns === 1 || calc.rawRuns === 3)) {
       const temp = inn.currentPair.strikerId;
       inn.currentPair.strikerId = inn.currentPair.nonStrikerId;
       inn.currentPair.nonStrikerId = temp;
@@ -497,9 +523,12 @@ export function recordBall(params: {
       inn.completedOvers += 1;
       inn.currentOverBalls = 0;
 
-      const temp = inn.currentPair.strikerId;
-      inn.currentPair.strikerId = inn.currentPair.nonStrikerId;
-      inn.currentPair.nonStrikerId = temp;
+      // Strike rotation at over end (Disabled in Semi/Final Over 5: Senior faces all deliveries)
+      if (!isSemiFinalOrFinalOver5) {
+        const temp = inn.currentPair.strikerId;
+        inn.currentPair.strikerId = inn.currentPair.nonStrikerId;
+        inn.currentPair.nonStrikerId = temp;
+      }
 
       if (inn.completedOvers >= match.totalOvers) {
         inn.isCompleted = true;
@@ -524,9 +553,12 @@ export function recordBall(params: {
     }
   }
 
-  if (params.newStrikerId) inn.currentPair.strikerId = params.newStrikerId;
-  if (params.newNonStrikerId) inn.currentPair.nonStrikerId = params.newNonStrikerId;
-  if (params.newBowlerId) inn.currentBowlerId = params.newBowlerId;
+  // Only allow manual overrides if NOT in the auto-handled Senior Solo Over 5
+  if (!isSemiFinalOrFinalOver5) {
+    if (params.newStrikerId) inn.currentPair.strikerId = params.newStrikerId;
+    if (params.newNonStrikerId) inn.currentPair.nonStrikerId = params.newNonStrikerId;
+    if (params.newBowlerId) inn.currentBowlerId = params.newBowlerId;
+  }
 
   if (match.currentInningsIndex === 1 && !inn.isCompleted) {
     const target = match.innings[0].totalRuns + 1;
@@ -639,9 +671,39 @@ export function updateActiveParticipants(params: {
   if (!match) throw new Error('Match not found');
 
   const inn = match.innings[match.currentInningsIndex];
-  if (params.strikerId) inn.currentPair.strikerId = params.strikerId;
-  if (params.nonStrikerId) inn.currentPair.nonStrikerId = params.nonStrikerId;
-  if (params.bowlerId) inn.currentBowlerId = params.bowlerId;
+  const isSemiOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
+  const currentOverNumber = inn.completedOvers + 1;
+  const isSemiFinalOrFinalOver5 = isSemiOrFinal && currentOverNumber === 5;
+
+  if (isSemiOrFinal && params.powerOverDeclaredNumber === 5) {
+    throw new Error('In Semi-Finals and Finals, Over 5 is reserved for Senior Solo and cannot be declared as Power Over.');
+  }
+
+  if (isSemiFinalOrFinalOver5) {
+    const battingTeam = state.teams.find(t => t.id === inn.battingTeamId);
+    const bowlingTeam = state.teams.find(t => t.id === inn.bowlingTeamId);
+    const batPlayingIds = inn.battingTeamId === match.teamAId ? match.teamAPlaying8Ids : match.teamBPlaying8Ids;
+    const seniorBatter = (batPlayingIds && batPlayingIds.length > 0
+      ? battingTeam?.players.filter(p => batPlayingIds.includes(p.id))
+      : battingTeam?.players)?.find(p => p.category === 'SENIOR') || battingTeam?.players.find(p => p.category === 'SENIOR');
+
+    const bowlPlayingIds = inn.bowlingTeamId === match.teamAId ? match.teamAPlaying8Ids : match.teamBPlaying8Ids;
+    const seniorBowler = (bowlPlayingIds && bowlPlayingIds.length > 0
+      ? bowlingTeam?.players.filter(p => bowlPlayingIds.includes(p.id))
+      : bowlingTeam?.players)?.find(p => p.category === 'SENIOR') || bowlingTeam?.players.find(p => p.category === 'SENIOR');
+
+    if (seniorBatter) {
+      inn.currentPair.strikerId = seniorBatter.id;
+      inn.currentPair.nonStrikerId = seniorBatter.id;
+    }
+    if (seniorBowler) {
+      inn.currentBowlerId = seniorBowler.id;
+    }
+  } else {
+    if (params.strikerId) inn.currentPair.strikerId = params.strikerId;
+    if (params.nonStrikerId) inn.currentPair.nonStrikerId = params.nonStrikerId;
+    if (params.bowlerId) inn.currentBowlerId = params.bowlerId;
+  }
 
   if (params.powerOverOptedOut) {
     if (inn.balls.length > 0 && !params.isSuperAdmin) {

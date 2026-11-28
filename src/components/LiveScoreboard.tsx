@@ -200,6 +200,8 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
 
     const currentOverNumber = currentInnings.completedOvers + 1;
     const isPowerOver = currentInnings.powerOverDeclaredNumber === currentOverNumber;
+    const isSemiOrFinal = match.stage === 'SEMI_FINAL' || match.stage === 'FINAL';
+    const isOver5SemiFinal = isSemiOrFinal && currentOverNumber === 5;
 
     const striker = battingTeam?.players.find(p => p.id === currentInnings.currentPair.strikerId);
     const nonStriker = battingTeam?.players.find(p => p.id === currentInnings.currentPair.nonStrikerId);
@@ -547,9 +549,15 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center space-x-1.5">
                 <Activity className="w-4 h-4 text-amber-400" />
-                <span>Current Batting Pair (Overs {(Math.floor(currentInnings.completedOvers / 2) * 2) + 1}-{(Math.floor(currentInnings.completedOvers / 2) * 2) + 2})</span>
+                <span>
+                  {isOver5SemiFinal 
+                    ? '🎖️ Over 5: Senior Citizen Solo Batsman' 
+                    : `Current Batting Pair (Overs ${(Math.floor(currentInnings.completedOvers / 2) * 2) + 1}-${(Math.floor(currentInnings.completedOvers / 2) * 2) + 2})`}
+                </span>
               </h3>
-              <span className="text-[11px] text-slate-500">2 overs per pair rule</span>
+              <span className="text-[11px] text-slate-500">
+                {isOver5SemiFinal ? 'Semi/Final Special Solo Over' : '2 overs per pair rule'}
+              </span>
             </div>
 
             {/* Striker */}
@@ -560,6 +568,11 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-white text-sm">{striker?.name || 'Striker'}</span>
                     {getCategoryBadge(striker?.category)}
+                    {isOver5SemiFinal && (
+                      <span className="bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase">
+                        Solo
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-400">
                     SR: {strikerStats?.ballsFaced ? ((strikerStats.runs / strikerStats.ballsFaced) * 100).toFixed(1) : '0.0'}
@@ -575,26 +588,38 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
             </div>
 
             {/* Non Striker */}
-            <div className="flex items-center justify-between bg-slate-950/40 p-3 rounded-xl border border-slate-800">
-              <div className="flex items-center space-x-2">
-                <span className="text-slate-600 font-bold text-xs">○</span>
+            {isOver5SemiFinal ? (
+              <div className="bg-amber-950/20 p-3 rounded-xl border border-amber-500/30 text-xs text-amber-300/90 flex items-center justify-between">
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-slate-200 text-sm">{nonStriker?.name || 'Non-Striker'}</span>
-                    {getCategoryBadge(nonStriker?.category)}
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    SR: {nonStrikerStats?.ballsFaced ? ((nonStrikerStats.runs / nonStrikerStats.ballsFaced) * 100).toFixed(1) : '0.0'}
-                  </div>
+                  <span className="font-bold block">Solo Batting Active</span>
+                  <span className="text-[11px] text-slate-400">Senior faces all 6 deliveries (no non-striker at crease)</span>
                 </div>
-              </div>
-              <div className="text-right">
-                <span className="text-lg font-black text-slate-200">{nonStrikerStats?.runs || 0}</span>
-                <span className="text-xs text-slate-400 block">
-                  ({nonStrikerStats?.ballsFaced || 0}b, {nonStrikerStats?.fours || 0}x4, {nonStrikerStats?.sixes || 0}x6)
+                <span className="bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold px-2 py-0.5 rounded text-[10px]">
+                  Over 5 Mandate
                 </span>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between bg-slate-950/40 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-600 font-bold text-xs">○</span>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-slate-200 text-sm">{nonStriker?.name || 'Non-Striker'}</span>
+                      {getCategoryBadge(nonStriker?.category)}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      SR: {nonStrikerStats?.ballsFaced ? ((nonStrikerStats.runs / nonStrikerStats.ballsFaced) * 100).toFixed(1) : '0.0'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-black text-slate-200">{nonStrikerStats?.runs || 0}</span>
+                  <span className="text-xs text-slate-400 block">
+                    ({nonStrikerStats?.ballsFaced || 0}b, {nonStrikerStats?.fours || 0}x4, {nonStrikerStats?.sixes || 0}x6)
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Current Bowler */}
@@ -604,7 +629,9 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                 <Zap className="w-4 h-4 text-emerald-400" />
                 <span>Current Bowler</span>
               </h3>
-              <span className="text-[11px] text-slate-500">1 over mandatory per player</span>
+              <span className="text-[11px] text-slate-500">
+                {isOver5SemiFinal ? 'Over 5 Senior Mandate' : '1 over mandatory per player'}
+              </span>
             </div>
 
             <div className="flex items-center justify-between bg-slate-950/60 p-3.5 rounded-xl border border-emerald-500/30">
@@ -612,6 +639,11 @@ export const LiveScoreboard: React.FC<LiveScoreboardProps> = ({
                 <div className="flex items-center space-x-2">
                   <span className="font-bold text-white text-base">{bowler?.name || 'Bowler'}</span>
                   {getCategoryBadge(bowler?.category)}
+                  {isOver5SemiFinal && (
+                    <span className="bg-emerald-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase">
+                      Over 5 Senior
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-slate-400 mt-1">
                   Econ: {bowlerStats?.oversBowled ? (bowlerStats.runsConceded / bowlerStats.oversBowled).toFixed(2) : '0.00'} • Wides: {bowlerStats?.wides || 0} • NB: {bowlerStats?.noBalls || 0}
